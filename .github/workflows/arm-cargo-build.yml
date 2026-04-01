@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ "main" ]
 
+# This fixes the Node.js 20 deprecation warning
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     name: Build for ${{ matrix.target }}
@@ -14,12 +18,12 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - aarch64-unknown-linux-gnu       # 64-bit ARM (e.g., Raspberry Pi 4/5)
-          - armv7-unknown-linux-gnueabihf   # 32-bit ARM (e.g., Raspberry Pi 3/Zero)
+          - aarch64-unknown-linux-gnu
+          - armv7-unknown-linux-gnueabihf
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # Note: checkout@v4 is already the latest; the warning is about the runner environment.
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -28,7 +32,6 @@ jobs:
 
       - name: Install Cross
         run: |
-          # Use a pre-compiled binary for speed
           curl -L https://github.com/cross-rs/cross/releases/latest/download/cross-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin
 
       - name: Build
@@ -38,5 +41,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: binary-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/YOUR_PROJECT_NAME 
-          # Replace YOUR_PROJECT_NAME with the name of your binary
+          # The fix: This searches for any file in the release folder 
+          # excluding the dependency folders (.d files)
+          path: |
+            target/${{ matrix.target }}/release/*
+            !target/${{ matrix.target }}/release/deps
+            !target/${{ matrix.target }}/release/build
+            !target/${{ matrix.target }}/release/*.d
