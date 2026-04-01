@@ -1,4 +1,4 @@
-name: ARM Build Cargo
+name: ARM Build Cargo for Pi 5 Running Patchbox
 
 on:
   push:
@@ -6,45 +6,36 @@ on:
   pull_request:
     branches: [ "main" ]
 
-# This fixes the Node.js 20 deprecation warning
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
-    name: Build for ${{ matrix.target }}
+    name: Build for Raspberry Pi 5 (64-bit)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - aarch64-unknown-linux-gnu
-          - armv7-unknown-linux-gnueabihf
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # Note: checkout@v4 is already the latest; the warning is about the runner environment.
+        uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: aarch64-unknown-linux-gnu
 
       - name: Install Cross
         run: |
           curl -L https://github.com/cross-rs/cross/releases/latest/download/cross-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin
 
       - name: Build
-        run: cross build --release --target ${{ matrix.target }}
+        run: cross build --release --target aarch64-unknown-linux-gnu
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: binary-${{ matrix.target }}
-          # The fix: This searches for any file in the release folder 
-          # excluding the dependency folders (.d files)
+          name: pi-5-binary
           path: |
-            target/${{ matrix.target }}/release/*
-            !target/${{ matrix.target }}/release/deps
-            !target/${{ matrix.target }}/release/build
-            !target/${{ matrix.target }}/release/*.d
+            target/aarch64-unknown-linux-gnu/release/*
+            !target/aarch64-unknown-linux-gnu/release/deps
+            !target/aarch64-unknown-linux-gnu/release/build
+            !target/aarch64-unknown-linux-gnu/release/*.d
