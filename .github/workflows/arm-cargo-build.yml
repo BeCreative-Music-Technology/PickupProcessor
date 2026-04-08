@@ -1,4 +1,4 @@
-name: Cargo Builder for Pi 5 ARM No-Release
+name: Cargo Builder for Pi 5 ARM Release-With-Tag
 
 on:
   push:
