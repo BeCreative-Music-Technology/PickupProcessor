@@ -1,4 +1,4 @@
-name: Release ARM Binary
+name: Cargo Builder for Pi 5 ARM No-Release
 
 on:
   push:

@@ -1,4 +1,4 @@
-name: ARM Build Cargo for Pi 5 Running Patchbox
+name: Cargo Builder for Pi 5 ARM No-Release
 
 on:
   push:
