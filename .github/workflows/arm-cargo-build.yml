@@ -27,10 +27,6 @@ jobs:
         run: |
           curl -L https://github.com/cross-rs/cross/releases/latest/download/cross-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin
 
-      - name: Install alsa-sys
-        run: |
-          sudo apt install libasound2-dev pkg-config
-
       - name: Build
         run: cross build --release --target aarch64-unknown-linux-gnu
 
