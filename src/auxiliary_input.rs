@@ -1,5 +1,8 @@
 ﻿use std::sync::Arc;
-use jack::{AsyncClient, AudioIn, Client, ClientOptions, Control, ProcessHandler, ProcessScope};
+use std::sync::atomic::AtomicBool;
+use std::thread;
+use std::thread::JoinHandle;
+use jack::{AudioIn, Client, ClientOptions, Control, ProcessScope};
 use jack::contrib::ClosureProcessHandler;
 use ringbuf::{CachingProd, SharedRb};
 use ringbuf::storage::Heap;
@@ -7,19 +10,27 @@ use ringbuf::traits::Producer;
 use crate::audio_input::AudioInput;
 use crate::error::Error;
 
-struct AuxiliaryInput<P> {
-  active_client: AsyncClient<(), P>
+struct AuxiliaryInput {
+  thread: Option<JoinHandle<()>>,
 }
 
-impl<P> AuxiliaryInput<P> {
+impl AuxiliaryInput {
   const CLIENT_NAME: &str = "Input";
   const PORT_NAME: &str = "Auxiliary";
 }
 
-impl<P> AudioInput for AuxiliaryInput<P>
-where
-    P: 'static + Send + ProcessHandler,
+impl AudioInput for AuxiliaryInput
 {
+  ///
+  /// Opens an `AuxiliaryInput` stream using Jack. 
+  /// The stream is kept open using an `std::thread`.
+  ///
+  /// `input_name` takes an `&str` with the id of the systems auxiliary port connected to the jack server.
+  /// An example of this string could be `"system:capture_1"`, which connects to the system's capture 1 port.
+  /// 
+  /// `producer` takes a reference to a mutable ring buffer producer.
+  /// The stream will be sent to the ring buffer and can be read using a ring buffer consumer.
+  ///
   fn open_stream(
     input_name: &str,
     mut producer: CachingProd<Arc<SharedRb<Heap<f32>>>>
@@ -41,21 +52,33 @@ where
       }
     );
 
-    // Activate the client
-    let active_client = client.activate_async((), process).unwrap();
+    // Activate client and connect ports to hardware channels
+    let source = input_name.to_owned();
+    let handle = thread::spawn(move || {
+      let active_client = client.activate_async((), process).unwrap();
 
-    // Connect ports to hardware channels
-    let source = input_name;
-    let destination= format!("{}:{}", Self::CLIENT_NAME, Self::PORT_NAME);
-    if let Err(e) = active_client.as_client().connect_ports_by_name(&source, &destination) {
-      Err(Error {
-        message: format!("Could not connect {} to {}: {:?}", source, destination, e),
-      })
-    } else {
-      println!("Connected {} -> {}", source, destination);
-      Ok(AuxiliaryInput {
-        active_client
-      })
+      let destination= format!("{}:{}", Self::CLIENT_NAME, Self::PORT_NAME);
+      if let Err(e) = active_client.as_client().connect_ports_by_name(&source, &destination) {
+        println!("Could not connect {} to {}: {:?}", source, destination, e);
+      } else {
+        println!("Connected {} -> {}", source, destination)
+      }
+
+      thread::park();
+    });
+
+    Ok(AuxiliaryInput {
+      thread: Some(handle),
+    })
+  }
+
+  ///
+  /// Closes the `AuxiliaryInput` stream by stopping the `std::thread`.
+  /// 
+  fn close_stream(&mut self) {
+    if let Some(thread) = self.thread.take() {
+      thread.thread().unpark();
+      thread.join().unwrap();
     }
   }
 }

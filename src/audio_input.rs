@@ -8,4 +8,5 @@ pub trait AudioInput {
     input_name: &str,
     producer: CachingProd<Arc<SharedRb<Heap<f32>>>>
   ) -> Result<Self, Error> where Self: Sized;
+  fn close_stream(&mut self);
 }
