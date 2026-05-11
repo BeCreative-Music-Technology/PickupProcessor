@@ -12,6 +12,7 @@ use crate::error::Error;
 
 struct AuxiliaryInput {
   thread: Option<JoinHandle<()>>,
+  aux_id: String,
 }
 
 impl AuxiliaryInput {
@@ -45,6 +46,7 @@ impl AudioInput for AuxiliaryInput
     let incremental_id = AUX_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed);
     let port_name = format!("{}_{}", Self::PORT_NAME, incremental_id);
     let in_port = client.register_port(&port_name, AudioIn::default()).unwrap();
+    let aux_id = format!("{}:{}", Self::CLIENT_NAME, port_name);
 
     // Create a processing callback that pushes data to ring buffer
     let process = ClosureProcessHandler::new(
@@ -57,10 +59,10 @@ impl AudioInput for AuxiliaryInput
 
     // Activate client and connect ports to hardware channels
     let source = input_name.to_owned();
+    let destination= aux_id.to_owned();
     let handle = thread::spawn(move || {
       let active_client = client.activate_async((), process).unwrap();
-
-      let destination= format!("{}:{}", Self::CLIENT_NAME, port_name);
+      
       if let Err(e) = active_client.as_client().connect_ports_by_name(&source, &destination) {
         println!("Could not connect {} to {}: {:?}", source, destination, e);
       } else {
@@ -72,6 +74,7 @@ impl AudioInput for AuxiliaryInput
 
     Ok(AuxiliaryInput {
       thread: Some(handle),
+      aux_id,
     })
   }
 
@@ -83,5 +86,9 @@ impl AudioInput for AuxiliaryInput
       thread.thread().unpark();
       thread.join().unwrap();
     }
+  }
+
+  fn id(&self) -> &str {
+    self.aux_id.as_str()
   }
 }
