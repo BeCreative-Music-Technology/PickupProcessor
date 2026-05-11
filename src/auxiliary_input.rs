@@ -1,5 +1,5 @@
 ﻿use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
 use jack::{AudioIn, Client, ClientOptions, Control, ProcessScope};
@@ -19,15 +19,17 @@ impl AuxiliaryInput {
   const PORT_NAME: &str = "Auxiliary";
 }
 
+static AUX_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
+
 impl AudioInput for AuxiliaryInput
 {
   ///
-  /// Opens an `AuxiliaryInput` stream using Jack. 
+  /// Opens an `AuxiliaryInput` stream using Jack.
   /// The stream is kept open using an `std::thread`.
   ///
   /// `input_name` takes an `&str` with the id of the systems auxiliary port connected to the jack server.
   /// An example of this string could be `"system:capture_1"`, which connects to the system's capture 1 port.
-  /// 
+  ///
   /// `producer` takes a reference to a mutable ring buffer producer.
   /// The stream will be sent to the ring buffer and can be read using a ring buffer consumer.
   ///
@@ -40,8 +42,9 @@ impl AudioInput for AuxiliaryInput
   {
     // Create a JACK client and register input port
     let (client, _status) = Client::new(Self::CLIENT_NAME, ClientOptions::default()).unwrap();
-    // TODO: Add a unique identifier suffix for PORT_NAME
-    let in_port = client.register_port(Self::PORT_NAME, AudioIn::default()).unwrap();
+    let incremental_id = AUX_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed);
+    let port_name = format!("{}_{}", Self::PORT_NAME, incremental_id);
+    let in_port = client.register_port(&port_name, AudioIn::default()).unwrap();
 
     // Create a processing callback that pushes data to ring buffer
     let process = ClosureProcessHandler::new(
@@ -57,7 +60,7 @@ impl AudioInput for AuxiliaryInput
     let handle = thread::spawn(move || {
       let active_client = client.activate_async((), process).unwrap();
 
-      let destination= format!("{}:{}", Self::CLIENT_NAME, Self::PORT_NAME);
+      let destination= format!("{}:{}", Self::CLIENT_NAME, port_name);
       if let Err(e) = active_client.as_client().connect_ports_by_name(&source, &destination) {
         println!("Could not connect {} to {}: {:?}", source, destination, e);
       } else {
@@ -74,7 +77,7 @@ impl AudioInput for AuxiliaryInput
 
   ///
   /// Closes the `AuxiliaryInput` stream by stopping the `std::thread`.
-  /// 
+  ///
   fn close_stream(&mut self) {
     if let Some(thread) = self.thread.take() {
       thread.thread().unpark();
