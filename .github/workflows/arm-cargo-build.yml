@@ -24,8 +24,10 @@ jobs:
           targets: aarch64-unknown-linux-gnu
 
       - name: Install Cross
-        run: |
-          curl -L https://github.com/cross-rs/cross/releases/latest/download/cross-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin
+        run: curl -L https://github.com/cross-rs/cross/releases/latest/download/cross-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin
+
+      - name: Install JACK dependencies
+        run: sudo apt-get install -y libjack-jackd2-dev pkg-config
 
       - name: Build
         run: cross build --release --target aarch64-unknown-linux-gnu
