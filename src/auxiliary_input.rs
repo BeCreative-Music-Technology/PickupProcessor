@@ -85,6 +85,9 @@ impl AudioInput for AuxiliaryInput
     }
   }
 
+  ///
+  /// Returns the incremental id of the `AuxiliaryInput`.
+  ///
   fn id(&self) -> &str {
     self.aux_id.as_str()
   }

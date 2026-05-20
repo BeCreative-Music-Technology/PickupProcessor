@@ -20,6 +20,16 @@ impl AuxiliaryOutput {
 static AUX_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
 
 impl AudioOutput for AuxiliaryOutput {
+  ///
+  /// Opens an `AuxiliaryOutput` stream using Jack.
+  /// The stream is kept open using an `std::thread`.
+  ///
+  /// `output_name` takes an `&str` with the id of the systems auxiliary port connected to the jack server.
+  /// An example of this string could be `"system:playback_1"`, which connects to the system's playback 1 port.
+  ///
+  /// `consumer` takes a reference to a mutable ring buffer consumer.
+  /// The stream will be read from the ring buffer using it.
+  ///
   fn open_stream(
     output_name: &str,
     mut consumer: Consumer<f32>
