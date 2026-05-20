@@ -1,21 +1,18 @@
-﻿use std::sync::Arc;
-use ringbuf::{CachingCons, CachingProd, HeapRb, SharedRb};
-use ringbuf::storage::Heap;
-use ringbuf::traits::{Consumer, Producer, Split};
+﻿use rtrb::{Consumer, Producer, RingBuffer};
 use crate::audio_bus::AudioBus;
 use crate::audio_input::AudioInput;
 use crate::auxiliary_input::AuxiliaryInput;
 use crate::error::Error;
 
 pub struct RoutingDirector {
-  audio_input: (Box<dyn AudioInput>, CachingCons<Arc<SharedRb<Heap<f32>>>>),
-  audio_buses: Vec<(AudioBus, CachingProd<Arc<SharedRb<Heap<f32>>>>)>,
+  audio_input: (Box<dyn AudioInput>, Consumer<f32>),
+  audio_buses: Vec<(AudioBus, Producer<f32>)>,
+  buffer_length: usize,
 }
 
 impl RoutingDirector {
-  pub fn new(audio_input_name: &str) -> Result<RoutingDirector, Error> {
-    let input_ring_buffer = HeapRb::<f32>::new(2048);
-    let (input_producer, input_consumer) = input_ring_buffer.split();
+  pub fn new(audio_input_name: &str, buffer_length: usize) -> Result<RoutingDirector, Error> {
+    let (input_producer, input_consumer) = RingBuffer::<f32>::new(buffer_length);
 
     let audio_input = match AuxiliaryInput::open_stream(
       audio_input_name,
@@ -29,26 +26,29 @@ impl RoutingDirector {
 
     Ok(RoutingDirector {
       audio_input: (Box::new(audio_input), input_consumer),
-      audio_buses
+      audio_buses,
+      buffer_length
     })
   }
 
   pub fn update(&mut self) {
     // Get audio slice from input
     let input_consumer = &mut self.audio_input.1;
-    let new_slice = input_consumer.try_pop().unwrap_or(0.0);
-
+    let new_sample = match input_consumer.pop() {
+      Ok(new_sample) => new_sample,
+      Err(_) => return,
+    };
+    
     // Collect enabled audio buses and push the audio slice
     self.audio_buses
         .iter_mut()
         .filter(|bus| bus.0.is_enabled() == true)
-        .for_each(|bus| _ = bus.1.try_push(new_slice));
+        .for_each(|bus| _ = bus.1.push(new_sample));
   }
 
   pub fn add_audio_bus(&mut self, audio_output_name: &str) -> Result<(), Error> {
-    let bus_ring_buffer = HeapRb::<f32>::new(2048);
-    let (bus_producer, bus_consumer) = bus_ring_buffer.split();
-    let new_bus = match AudioBus::new(bus_consumer, audio_output_name, false) {
+    let (bus_producer, bus_consumer) = RingBuffer::<f32>::new(2048);
+    let new_bus = match AudioBus::new(bus_consumer, audio_output_name, false, self.buffer_length) {
       Ok(new_bus) => new_bus,
       Err(e) => return Err(e),
     };

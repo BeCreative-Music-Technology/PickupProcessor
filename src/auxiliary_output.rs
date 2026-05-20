@@ -1,12 +1,9 @@
-﻿use std::sync::Arc;
-use std::sync::atomic::{AtomicU8, Ordering};
+﻿use std::sync::atomic::{AtomicU8, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
 use jack::{AudioOut, Client, ClientOptions, Control, ProcessScope};
 use jack::contrib::ClosureProcessHandler;
-use ringbuf::{CachingCons, SharedRb};
-use ringbuf::storage::Heap;
-use ringbuf::traits::Consumer;
+use rtrb::Consumer;
 use crate::audio_output::AudioOutput;
 use crate::error::Error;
 
@@ -25,7 +22,7 @@ static AUX_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
 impl AudioOutput for AuxiliaryOutput {
   fn open_stream(
     output_name: &str,
-    mut consumer: CachingCons<Arc<SharedRb<Heap<f32>>>>
+    mut consumer: Consumer<f32>
   ) -> Result<Self, Error>
   where
       Self: Sized
@@ -41,7 +38,8 @@ impl AudioOutput for AuxiliaryOutput {
     let process = ClosureProcessHandler::new(
       move |_: &Client, ps: &ProcessScope| -> Control {
         out_port.as_mut_slice(ps).iter_mut().for_each(|mut out_sample| {
-          let in_sample  = consumer.try_pop().unwrap_or(0.0);
+          let in_sample  = consumer.pop().unwrap_or(0.0);
+
           *out_sample = in_sample;
         });
         Control::Continue
@@ -49,8 +47,8 @@ impl AudioOutput for AuxiliaryOutput {
     );
 
     // Activate client and connect ports to hardware channels
-    let source = output_name.to_owned();
-    let destination= aux_id.to_owned();
+    let source= aux_id.to_owned();
+    let destination = output_name.to_owned();
     let handle = thread::spawn(move || {
       let active_client = client.activate_async((), process).unwrap();
 

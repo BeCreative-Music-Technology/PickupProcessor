@@ -8,8 +8,10 @@ mod audio_bus;
 mod audio_output;
 mod auxiliary_output;
 
-fn main() {
-    let mut routing_director = RoutingDirector::new("system:capture_1")
+const BUFFER_LENGTH: usize = 1024;
+
+fn main() {    
+    let mut routing_director = RoutingDirector::new("system:capture_1", BUFFER_LENGTH)
         .expect("Could not initialize routing director");
     
     routing_director

@@ -1,12 +1,9 @@
-﻿use std::sync::Arc;
-use std::sync::atomic::{AtomicU8, Ordering};
+﻿use std::sync::atomic::{AtomicU8, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
 use jack::{AudioIn, Client, ClientOptions, Control, ProcessScope};
 use jack::contrib::ClosureProcessHandler;
-use ringbuf::{CachingProd, SharedRb};
-use ringbuf::storage::Heap;
-use ringbuf::traits::Producer;
+use rtrb::Producer;
 use crate::audio_input::AudioInput;
 use crate::error::Error;
 
@@ -36,7 +33,7 @@ impl AudioInput for AuxiliaryInput
   ///
   fn open_stream(
     input_name: &str,
-    mut producer: CachingProd<Arc<SharedRb<Heap<f32>>>>
+    mut producer: Producer<f32>,
   ) -> Result<Self, Error>
   where
       Self: Sized
@@ -52,7 +49,7 @@ impl AudioInput for AuxiliaryInput
     let process = ClosureProcessHandler::new(
       move |_: &Client, ps: &ProcessScope| -> Control {
         let input = in_port.as_slice(ps);
-        let _ = producer.push_slice(input);
+        let _ = producer.push_entire_slice(input);
         Control::Continue
       }
     );
