@@ -9,7 +9,7 @@ jobs:
   build-and-release:
     name: Build and Release
     runs-on: ubuntu-latest
-    # This block tells GitHub exactly what this script is allowed to do
+
     permissions:
       contents: write
       packages: write
@@ -24,8 +24,10 @@ jobs:
           targets: aarch64-unknown-linux-gnu
 
       - name: Install Cross
-        run: |
-          curl -L https://github.com/cross-rs/cross/releases/latest/download/cross-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin
+        run: curl -L https://github.com/cross-rs/cross/releases/latest/download/cross-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin
+
+      - name: Install JACK dependencies
+        run: sudo apt-get install -y libjack-jackd2-dev pkg-config
 
       - name: Build Binary
         run: cross build --release --target aarch64-unknown-linux-gnu
@@ -33,7 +35,6 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          # Replace 'pickup-processor' with the exact name of your executable
           files: |
             target/aarch64-unknown-linux-gnu/release/pickup-processor
           generate_release_notes: true
