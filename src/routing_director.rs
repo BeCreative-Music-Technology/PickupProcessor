@@ -111,9 +111,7 @@ impl RoutingDirector {
           Ok(())
         } 
     else {
-      Err(Error {
-        message: format!("AudioBus {} not found", bus_id),
-      })
+      Err(Error::new(format!("AudioBus {} not found", bus_id).as_str()))
     }
   }
 
@@ -130,9 +128,7 @@ impl RoutingDirector {
       Ok(())
     }
     else {
-      Err(Error {
-        message: format!("AudioBus {} not found", bus_id),
-      })
+      Err(Error::new(format!("AudioBus {} not found", bus_id).as_str()))
     }
   }
 

@@ -1,5 +1,6 @@
 use crate::routing_director::RoutingDirector;
 
+mod audio_effects;
 mod audio_input;
 mod auxiliary_input;
 mod error;
