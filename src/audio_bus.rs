@@ -115,6 +115,13 @@ impl AudioBus {
     self.effects.lock().unwrap().remove(index);
   }
 
+  ///
+  /// High-order function for applying changes to effects.
+  ///
+  /// `index` takes a `usize` as the index of the effect to be changed.
+  ///
+  /// `f` takes function with a `&mut dyn AudioEffect` as a parameter.
+  /// 
   pub fn for_effect<F, R>(&mut self, index: usize, f: F) -> Result<R, Error>
   where
       F: FnOnce(&mut dyn AudioEffect) -> R
