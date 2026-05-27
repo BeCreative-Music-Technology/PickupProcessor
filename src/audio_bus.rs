@@ -1,8 +1,9 @@
-﻿use std::sync::Arc;
+﻿use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
 use rtrb::{Consumer, RingBuffer};
+use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_output::AudioOutput;
 use crate::auxiliary_output::AuxiliaryOutput;
 use crate::error::Error;
@@ -10,6 +11,8 @@ use crate::error::Error;
 pub struct AudioBus {
   enabled: Arc<AtomicBool>,
   audio_output: Box<dyn AudioOutput>,
+  effects: Arc<Mutex<Vec<Box<dyn AudioEffect>>>>,
+  effect_buffer: Arc<Mutex<Vec<f32>>>,
   bus_id: String,
   thread: Option<JoinHandle<()>>
 }
@@ -49,30 +52,86 @@ impl AudioBus {
       Err(e) => return Err(e),
     };
 
+    // Clone pointers
+    let effects = Arc::new(Mutex::new(Vec::<Box<dyn AudioEffect>>::new()));
+    let thread_effects = effects.clone();
+
+    let effect_buffer = Arc::new(Mutex::new(Vec::new()));
+    let thread_effect_buffer = effect_buffer.clone();
+
     let atomic_enabled = Arc::new(AtomicBool::new(enabled));
     let thread_enabled = Arc::clone(&atomic_enabled);
 
     // Create a thread for processing the incoming audio
-    let handle = thread::spawn(move || {
-      while thread_enabled.load(Ordering::Relaxed) {
-        let incoming_audio = match consumer.pop() {
-          Ok(incoming_audio) => incoming_audio,
-          Err(_) => continue,
-        };
+    let handle = thread::spawn(move || while thread_enabled.load(Ordering::Relaxed) {
+      let incoming_audio = match consumer.pop() {
+        Ok(incoming_audio) => incoming_audio,
+        Err(_) => continue,
+      };
+      
+      // Clone, empty and process data from effect buffer
+      let mut processed_audio = {
+        let mut effect_buffer = thread_effect_buffer.lock().unwrap();
+        effect_buffer.push(incoming_audio);
 
-        // TODO: Apply audio effects
-        let processed_audio = incoming_audio;
+        if effect_buffer.len() < buffer_length {
+          continue;
+        }
 
-        _ = output_producer.push(processed_audio);
+        let data = effect_buffer.clone();
+        effect_buffer.clear();
+        data
+      };
+      for effect in thread_effects.lock().unwrap().iter() {
+        processed_audio = effect
+            .process_chunk(processed_audio)
+            .into_vec();
       }
+
+      _ = output_producer.push_partial_slice(&processed_audio);
     });
 
     Ok(Self {
       enabled: atomic_enabled,
       audio_output: Box::new(audio_output),
+      effects,
+      effect_buffer,
       bus_id,
       thread: Some(handle),
     })
+  }
+
+  ///
+  /// Adds new effect to the effect chain
+  ///
+  pub fn add_effect(&mut self, effect: Box<dyn AudioEffect>) {
+    self.effects.lock().unwrap().push(effect);
+  }
+
+  ///
+  /// Removes effect from the effect chain
+  ///
+  pub fn remove_effect(&mut self, index: usize) {
+    self.effects.lock().unwrap().remove(index);
+  }
+
+  ///
+  /// High-order function for applying changes to effects.
+  ///
+  /// `index` takes a `usize` as the index of the effect to be changed.
+  ///
+  /// `f` takes function with a `&mut dyn AudioEffect` as a parameter.
+  ///
+  pub fn for_effect<F, R>(&mut self, index: usize, f: F) -> Result<R, Error>
+  where
+      F: FnOnce(&mut dyn AudioEffect) -> R
+  {
+    let mut effects = self.effects.lock().unwrap();
+
+    match effects.get_mut(index) {
+      Some(effect) => Ok(f(effect.as_mut())),
+      None => Err(Error::new("Index out of bounds")),
+    }
   }
 
   ///
@@ -83,7 +142,7 @@ impl AudioBus {
   }
 
   ///
-  /// Disables the `AudioBus` so it stops processing the incomming data.
+  /// Disables the `AudioBus` so it stops processing the incoming data.
   ///
   pub fn disable(&mut self) {
     self.enabled.store(false, Ordering::Relaxed);

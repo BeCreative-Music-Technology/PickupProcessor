@@ -1,5 +1,8 @@
+use crate::audio_effects::audio_effect::AudioEffect;
+use crate::audio_effects::gain_effect::GainEffect;
 use crate::routing_director::RoutingDirector;
 
+mod audio_effects;
 mod audio_input;
 mod auxiliary_input;
 mod error;
@@ -27,6 +30,13 @@ fn main() {
             .enable_audio_bus(&id)
             .expect("Audio bus could not be enabled");
     }
+    routing_director.audio_buses().iter_mut().for_each(|bus| {
+        bus.add_effect(Box::new(GainEffect::new()));
+        bus.for_effect(0, |effect| effect
+            .set_value("gain", 32767)
+            .expect("Could not set gain value")
+        ).expect("Could not add gain effect");
+    });
 
     loop {
         routing_director.update();

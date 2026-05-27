@@ -111,9 +111,7 @@ impl RoutingDirector {
           Ok(())
         } 
     else {
-      Err(Error {
-        message: format!("AudioBus {} not found", bus_id),
-      })
+      Err(Error::new(format!("AudioBus {} not found", bus_id).as_str()))
     }
   }
 
@@ -130,16 +128,14 @@ impl RoutingDirector {
       Ok(())
     }
     else {
-      Err(Error {
-        message: format!("AudioBus {} not found", bus_id),
-      })
+      Err(Error::new(format!("AudioBus {} not found", bus_id).as_str()))
     }
   }
 
   ///
   /// Returns all existing instances of `AudioBus` as a `Vec<&AudioBus>`.
   ///
-  pub fn audio_buses(&self) -> Vec<&AudioBus> {
-    self.audio_buses.iter().map(|(bus, _)| bus).collect()
+  pub fn audio_buses(&mut self) -> Vec<&mut AudioBus> {
+    self.audio_buses.iter_mut().map(|(bus, _)| bus).collect()
   }
 }
