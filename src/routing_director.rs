@@ -135,7 +135,7 @@ impl RoutingDirector {
   ///
   /// Returns all existing instances of `AudioBus` as a `Vec<&AudioBus>`.
   ///
-  pub fn audio_buses(&self) -> Vec<&AudioBus> {
-    self.audio_buses.iter().map(|(bus, _)| bus).collect()
+  pub fn audio_buses(&mut self) -> Vec<&mut AudioBus> {
+    self.audio_buses.iter_mut().map(|(bus, _)| bus).collect()
   }
 }
