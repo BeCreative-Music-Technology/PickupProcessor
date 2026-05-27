@@ -121,7 +121,7 @@ impl AudioBus {
   /// `index` takes a `usize` as the index of the effect to be changed.
   ///
   /// `f` takes function with a `&mut dyn AudioEffect` as a parameter.
-  /// 
+  ///
   pub fn for_effect<F, R>(&mut self, index: usize, f: F) -> Result<R, Error>
   where
       F: FnOnce(&mut dyn AudioEffect) -> R
