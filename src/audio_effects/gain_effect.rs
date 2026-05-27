@@ -7,8 +7,12 @@ pub struct GainEffect {
 }
 
 impl GainEffect {
-  const MIN_GAIN_VALUE: f32 = 1.0 / 6.0; // -6db
+  const MIN_GAIN_VALUE: f32 = -6.0; // -6db
   const MAX_GAIN_VALUE: f32 = 18.0; // +18db
+
+  fn db_to_gain(db: f32) -> f32 {
+    10.0_f32.powf(db / 20.0)
+  }
 }
 
 impl AudioEffect for GainEffect {
@@ -31,7 +35,7 @@ impl AudioEffect for GainEffect {
   fn process_chunk(&self, chunk: Vec<f32>) -> Box<[f32]> {
     let u16_half = u16::MAX / 2;
 
-    let gain_multiplier: f32 = if self.gain_value < u16_half {
+    let gain_db: f32 = if self.gain_value < u16_half {
       effect_helper::map(self.gain_value, u16::MIN, u16_half, Self::MIN_GAIN_VALUE, 1.0)
     }
     else if self.gain_value > u16_half {
@@ -42,7 +46,7 @@ impl AudioEffect for GainEffect {
     };
 
     chunk.iter().map(|sample| {
-      sample * gain_multiplier
+      sample * Self::db_to_gain(gain_db)
     }).collect()
   }
 
