@@ -68,15 +68,20 @@ impl AudioBus {
         Ok(incoming_audio) => incoming_audio,
         Err(_) => continue,
       };
-
-      // Push incoming audio to effect buffer and continue loop when buffer is not full yet
-      let mut effect_buffer = thread_effect_buffer.lock().unwrap();
-      effect_buffer.push(incoming_audio);
-      if effect_buffer.len() < buffer_length { continue; }
       
       // Clone, empty and process data from effect buffer
-      let mut processed_audio = effect_buffer.clone();
-      effect_buffer.clear();
+      let mut processed_audio = {
+        let mut effect_buffer = thread_effect_buffer.lock().unwrap();
+        effect_buffer.push(incoming_audio);
+
+        if effect_buffer.len() < buffer_length {
+          continue;
+        }
+
+        let data = effect_buffer.clone();
+        effect_buffer.clear();
+        data
+      };
       for effect in thread_effects.lock().unwrap().iter() {
         processed_audio = effect
             .process_chunk(processed_audio)
@@ -108,6 +113,18 @@ impl AudioBus {
   ///
   pub fn remove_effect(&mut self, index: usize) {
     self.effects.lock().unwrap().remove(index);
+  }
+
+  pub fn for_effect<F, R>(&mut self, index: usize, f: F) -> Result<R, Error>
+  where
+      F: FnOnce(&mut dyn AudioEffect) -> R
+  {
+    let mut effects = self.effects.lock().unwrap();
+
+    match effects.get_mut(index) {
+      Some(effect) => Ok(f(effect.as_mut())),
+      None => Err(Error::new("Index out of bounds")),
+    }
   }
 
   ///
