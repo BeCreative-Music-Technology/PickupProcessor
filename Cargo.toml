@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+fundsp = "0.23.0"
 jack = "0.13.5"
 rtrb = "0.3.4"

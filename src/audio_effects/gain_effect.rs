@@ -32,7 +32,7 @@ impl AudioEffect for GainEffect {
   ///
   /// `chunk` takes a `Vec<f32>` which contains the data to be processed by the gain effect.
   ///
-  fn process_chunk(&self, chunk: Vec<f32>) -> Box<[f32]> {
+  fn process_chunk(&mut self, chunk: Vec<f32>) -> Box<[f32]> {
     let u16_half = u16::MAX / 2;
 
     let gain_db: f32 = if self.gain_value < u16_half {
@@ -61,7 +61,7 @@ impl AudioEffect for GainEffect {
   fn set_value(&mut self, key: &str, value: u16) -> Result<(), Error> {
     match key {
       "gain" => { self.gain_value = value; Ok(()) },
-      _ => Err(Error::new("unknown audio effect")),
+      _ => Err(Error::new("Unknown parameter")),
     }
   }
 }
