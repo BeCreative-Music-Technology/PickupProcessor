@@ -3,7 +3,7 @@ use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_effects::effect_helper;
 use crate::error::Error;
 
-struct LowPassFilter {
+pub struct LowPassFilter {
   frequency_value: f32,
   q_factor_value: f32,
   filter: An<FixedSvf<f32, LowpassMode<f32>>>,
