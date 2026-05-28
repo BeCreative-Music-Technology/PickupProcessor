@@ -82,7 +82,7 @@ impl AudioBus {
         effect_buffer.clear();
         data
       };
-      for effect in thread_effects.lock().unwrap().iter() {
+      for effect in thread_effects.lock().unwrap().iter_mut() {
         processed_audio = effect
             .process_chunk(processed_audio)
             .into_vec();

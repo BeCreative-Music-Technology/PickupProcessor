@@ -1,5 +1,6 @@
 use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_effects::gain_effect::GainEffect;
+use crate::audio_effects::low_pass_filter_effect::LowPassFilter;
 use crate::routing_director::RoutingDirector;
 
 mod audio_effects;
@@ -13,10 +14,12 @@ mod auxiliary_output;
 
 const BUFFER_LENGTH: usize = 1024;
 
-fn main() {    
+fn main() {
+    // Create a new routing director
     let mut routing_director = RoutingDirector::new("system:capture_1", BUFFER_LENGTH)
         .expect("Could not initialize routing director");
     
+    // Create and enable a new audio bus
     routing_director
         .add_audio_bus("system:playback_1")
         .expect("Could not instantiate new audio bus");
@@ -30,12 +33,18 @@ fn main() {
             .enable_audio_bus(&id)
             .expect("Audio bus could not be enabled");
     }
+    
+    // Add effects to the audio bus
     routing_director.audio_buses().iter_mut().for_each(|bus| {
+        // Gain effect
         bus.add_effect(Box::new(GainEffect::new()));
         bus.for_effect(0, |effect| effect
             .set_value("gain", 32767)
             .expect("Could not set gain value")
         ).expect("Could not add gain effect");
+        
+        // Low pass filter effect
+        bus.add_effect(Box::new(LowPassFilter::new()));
     });
 
     loop {
