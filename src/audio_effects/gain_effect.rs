@@ -3,7 +3,7 @@ use crate::audio_effects::effect_helper;
 use crate::error::Error;
 
 pub struct GainEffect {
-  gain_value: u16,
+  gain: u16,
 }
 
 impl GainEffect {
@@ -21,7 +21,7 @@ impl AudioEffect for GainEffect {
       Self: Sized
   {
     Self {
-      gain_value: u16::MAX / 2,
+      gain: u16::MAX / 2,
     }
   }
 
@@ -35,11 +35,11 @@ impl AudioEffect for GainEffect {
   fn process_chunk(&mut self, chunk: Vec<f32>) -> Box<[f32]> {
     let u16_half = u16::MAX / 2;
 
-    let gain_db: f32 = if self.gain_value < u16_half {
-      effect_helper::map(self.gain_value, u16::MIN, u16_half, Self::MIN_GAIN_VALUE, 1.0)
+    let gain_db: f32 = if self.gain < u16_half {
+      effect_helper::map(self.gain, u16::MIN, u16_half, Self::MIN_GAIN_VALUE, 1.0)
     }
-    else if self.gain_value > u16_half {
-      effect_helper::map(self.gain_value, u16_half, u16::MAX, 1.0, Self::MAX_GAIN_VALUE)
+    else if self.gain > u16_half {
+      effect_helper::map(self.gain, u16_half, u16::MAX, 1.0, Self::MAX_GAIN_VALUE)
     }
     else {
       1.0
@@ -60,7 +60,7 @@ impl AudioEffect for GainEffect {
   ///
   fn set_value(&mut self, key: &str, value: u16) -> Result<(), Error> {
     match key {
-      "gain" => { self.gain_value = value; Ok(()) },
+      "gain" => { self.gain = value; Ok(()) },
       _ => Err(Error::new("Unknown parameter")),
     }
   }

@@ -18,7 +18,7 @@ fn main() {
     // Create a new routing director
     let mut routing_director = RoutingDirector::new("system:capture_1", BUFFER_LENGTH)
         .expect("Could not initialize routing director");
-    
+
     // Create and enable a new audio bus
     routing_director
         .add_audio_bus("system:playback_1")
@@ -33,7 +33,7 @@ fn main() {
             .enable_audio_bus(&id)
             .expect("Audio bus could not be enabled");
     }
-    
+
     // Add effects to the audio bus
     routing_director.audio_buses().iter_mut().for_each(|bus| {
         // Gain effect
@@ -42,7 +42,7 @@ fn main() {
             .set_value("gain", 32767)
             .expect("Could not set gain value")
         ).expect("Could not add gain effect");
-        
+
         // Low pass filter effect
         bus.add_effect(Box::new(LowPassFilter::new()));
     });
