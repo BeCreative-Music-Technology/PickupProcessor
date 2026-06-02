@@ -417,6 +417,7 @@ dependencies = [
  "fundsp",
  "jack",
  "rtrb",
+ "serde_json",
 ]
 
 [[package]]
