@@ -3,13 +3,13 @@ use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_effects::effect_helper;
 use crate::error::Error;
 
-pub struct LowPassFilter {
+pub struct LowPassFilterEffect {
   frequency: f32,
   q_factor: f32,
   filter: An<FixedSvf<f32, LowpassMode<f32>>>,
 }
 
-impl AudioEffect for LowPassFilter {
+impl AudioEffect for LowPassFilterEffect {
   fn new() -> Self
   where
       Self: Sized

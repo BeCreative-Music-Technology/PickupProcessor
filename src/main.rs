@@ -1,8 +1,5 @@
-use crate::audio_effects::audio_effect::AudioEffect;
-use crate::audio_effects::gain_effect::GainEffect;
-use crate::audio_effects::low_pass_filter_effect::LowPassFilter;
-use crate::error::Error;
-use crate::external_connection::Connection;
+use std::sync::{Arc, Mutex};
+use crate::external_connection::ExternalConnection;
 use crate::routing_director::RoutingDirector;
 use crate::vcsgp_connection::VcsgpConnection;
 
@@ -21,8 +18,10 @@ const BUFFER_LENGTH: usize = 1024;
 
 fn main() {
     // Create a new routing director
-    let mut routing_director = RoutingDirector::new("system:capture_1", BUFFER_LENGTH)
-        .expect("Could not initialize routing director");
+    let routing_director_pointer = Arc::new(Mutex::new(RoutingDirector::new("system:capture_1", BUFFER_LENGTH)
+        .expect("Could not initialize routing director")));
+    let routing_director_clone = routing_director_pointer.clone();
+    let mut routing_director = routing_director_pointer.lock().unwrap();
 
     // Instantiate audio buses
     ["system:playback_1", "system:playback_2", "system:playback_3", "system:playback_4"]
@@ -43,9 +42,11 @@ fn main() {
             .enable_audio_bus(&id)
             .expect("Audio bus could not be enabled");
     }
+    // TODO: Check if mutex lock is dropped
 
-    let mut external_connection: VcsgpConnection = VcsgpConnection::new("")
+    let mut protocol_connection = VcsgpConnection::new("")
         .expect("Failed to create VCSGP connection");
+    protocol_connection.start(routing_director_clone);
 
     // // Add effects to the audio bus
     // routing_director.audio_buses().iter_mut().for_each(|bus| {

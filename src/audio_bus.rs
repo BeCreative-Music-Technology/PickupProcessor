@@ -109,10 +109,24 @@ impl AudioBus {
   }
 
   ///
+  /// Retrieves a copy of all effects from the effect chain
+  ///
+  pub fn effects(&self) -> Arc<Mutex<Vec<Box<dyn AudioEffect>>>> {
+    self.effects.clone()
+  }
+
+  ///
   /// Removes effect from the effect chain
   ///
   pub fn remove_effect(&mut self, index: usize) {
     self.effects.lock().unwrap().remove(index);
+  }
+
+  ///
+  /// Removes all effects from the effect chain
+  ///
+  pub fn clear_effects(&mut self) {
+    self.effects.lock().unwrap().clear();
   }
 
   ///
