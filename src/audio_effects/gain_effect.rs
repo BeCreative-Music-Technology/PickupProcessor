@@ -32,11 +32,15 @@ impl ControlInputObserver for EffectInputObserver {
 }
 
 impl AudioEffect for GainEffect {
-  fn new() -> Self where Self: Sized {
+  fn new() -> Self
+  where
+      Self: Sized
+  {
     Self {
       gain_value: Arc::new(AtomicU16::new(u16::MAX / 2)),
     }
   }
+
   ///
   /// Processes the chunk of data given to the method and applies a gain.
   /// The gain is done by multiplying the signal with a set factor.
@@ -44,7 +48,7 @@ impl AudioEffect for GainEffect {
   ///
   /// `chunk` takes a `Vec<f32>` which contains the data to be processed by the gain effect.
   ///
-  fn process_chunk(&self, chunk: Vec<f32>) -> Box<[f32]> {
+  fn process_chunk(&mut self, chunk: Vec<f32>) -> Box<[f32]> {
     // Safely pull the current value exactly as it is right now
     let current_gain = self.gain_value.load(Ordering::Relaxed);
 
