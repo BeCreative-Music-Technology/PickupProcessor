@@ -5,17 +5,13 @@ use rppal::gpio::{Gpio, Level};
 use super::control_input_observer::ControlChange;
 use super::observable_control_input::ObservableControlInput;
 
-
 pub trait ControlInput: Send + Sync {}
-
 
 pub struct RotaryInput {
     pub observable: Arc<ObservableControlInput>,
 }
 
 impl ControlInput for RotaryInput {}
-
-
 
 impl RotaryInput {
     // Define the BCM GPIO pin numbers
@@ -59,8 +55,6 @@ impl RotaryInput {
         Self { observable }
     }
 }
-
-
 
 pub struct LaserInput {
     pub observable: ObservableControlInput,

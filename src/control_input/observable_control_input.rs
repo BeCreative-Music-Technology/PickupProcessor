@@ -13,7 +13,6 @@ impl ObservableControlInput {
         }
     }
 
-
     pub fn notify(&self, cc: &ControlChange) {
         if let Ok(subs) = self.observers.lock() {
             for subscriber in subs.iter() {

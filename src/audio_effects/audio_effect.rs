@@ -1,6 +1,5 @@
 ﻿use std::sync::Arc;
-use std::sync::atomic::{AtomicU16, Ordering};
-use crate::control_input::{ControlInputObserver, ObservableControlInput};
+use crate::control_input::{ControlInputObserver};
 use crate::error::Error;
 
 pub trait AudioEffect: Send + Sync {

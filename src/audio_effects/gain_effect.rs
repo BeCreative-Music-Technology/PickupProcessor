@@ -2,7 +2,7 @@
 use std::sync::atomic::{AtomicU16, Ordering};
 use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_effects::effect_helper;
-use crate::control_input::{ControlChange, ControlInputObserver, ObservableControlInput};
+use crate::control_input::{ControlChange, ControlInputObserver};
 use crate::error::Error;
 
 pub struct GainEffect {
