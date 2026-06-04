@@ -2,7 +2,8 @@
 use std::sync::atomic::{AtomicU16, Ordering};
 use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_effects::effect_helper;
-use crate::control_input::{ControlChange, ControlInputObserver};
+use crate::audio_effects::effect_input_observer::EffectInputObserver;
+use crate::control_input::{ControlInputObserver};
 use crate::error::Error;
 
 pub struct GainEffect {
@@ -16,18 +17,6 @@ impl GainEffect {
 
   fn db_to_gain(db: f32) -> f32 {
     10.0_f32.powf(db / 20.0)
-  }
-}
-
-struct EffectInputObserver {
-  value_storage: Arc<AtomicU16>,
-}
-
-impl ControlInputObserver for EffectInputObserver {
-  fn update(&self, cc: &ControlChange) {
-    // Triggered by the hardware/control thread.
-    // The audio thread will pick this up on its next process cycle.
-        self.value_storage.store(cc.value, Ordering::Relaxed);
   }
 }
 
