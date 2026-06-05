@@ -4,7 +4,7 @@ pub mod observable_control_input;
 
 // Re-export items so other packages can use `use crate::control_input::ControlChange;`
 pub use control_input_observer::{ControlChange, ControlInputObserver};
-pub use control_input::{ControlInput, LaserInput, RotaryInput};
+pub use control_input::{ControlInput, RotaryInput};
 pub use observable_control_input::ObservableControlInput;
 
 #[cfg(test)]
@@ -35,7 +35,6 @@ mod tests {
         let change = ControlChange {
             control_id: "pot_volume".to_string(),
             value: 512,
-            enabled: true,
         };
         observable.notify(&change);
 
@@ -55,7 +54,6 @@ mod tests {
         let change = ControlChange {
             control_id: "laser_cutoff".to_string(),
             value: 1024,
-            enabled: true,
         };
         observable.notify(&change);
 
