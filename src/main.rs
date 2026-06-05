@@ -1,6 +1,6 @@
 use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_effects::gain_effect::GainEffect;
-use crate::control_input::{ControlInputObserver, RotaryInput};
+use crate::control_input::{ControlInput, ControlInputObserver, RotaryInput};
 use crate::audio_effects::low_pass_filter_effect::LowPassFilter;
 use crate::routing_director::RoutingDirector;
 
@@ -48,7 +48,7 @@ fn main() {
         let gain_observer = gain_effect.get_control_observer("gain")
             .expect("Could not get observer from effect");
 
-        volume_dial.observable.register(gain_observer);
+        volume_dial.observable().register(gain_observer);
 
         bus.add_effect(Box::new(gain_effect));
         bus.for_effect(0, |effect| effect
