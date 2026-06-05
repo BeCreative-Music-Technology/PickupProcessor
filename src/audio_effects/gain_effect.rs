@@ -1,9 +1,14 @@
-﻿use crate::audio_effects::audio_effect::AudioEffect;
+﻿use std::sync::Arc;
+use std::sync::atomic::{AtomicU16, Ordering};
+use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_effects::effect_helper;
+use crate::audio_effects::effect_input_observer::EffectInputObserver;
+use crate::control_input::{ControlInputObserver};
 use crate::error::Error;
 
 pub struct GainEffect {
-  gain: u16,
+  // Wrap the parameter in an Arc<AtomicU16> so it can be shared safely
+  gain_value: Arc<AtomicU16>,
 }
 
 impl GainEffect {
@@ -21,7 +26,7 @@ impl AudioEffect for GainEffect {
       Self: Sized
   {
     Self {
-      gain: u16::MAX / 2,
+      gain_value: Arc::new(AtomicU16::new(u16::MAX / 2)),
     }
   }
 
@@ -33,15 +38,15 @@ impl AudioEffect for GainEffect {
   /// `chunk` takes a `Vec<f32>` which contains the data to be processed by the gain effect.
   ///
   fn process_chunk(&mut self, chunk: Vec<f32>) -> Box<[f32]> {
-    let u16_half = u16::MAX / 2;
+    // Safely pull the current value exactly as it is right now
+    let current_gain = self.gain_value.load(Ordering::Relaxed);
 
-    let gain_db: f32 = if self.gain < u16_half {
-      effect_helper::map(self.gain, u16::MIN, u16_half, Self::MIN_GAIN_VALUE, 1.0)
-    }
-    else if self.gain > u16_half {
-      effect_helper::map(self.gain, u16_half, u16::MAX, 1.0, Self::MAX_GAIN_VALUE)
-    }
-    else {
+    let u16_half = u16::MAX / 2;
+    let gain_db: f32 = if current_gain < u16_half {
+      effect_helper::map(current_gain, u16::MIN, u16_half, Self::MIN_GAIN_VALUE, 1.0)
+    } else if current_gain > u16_half {
+      effect_helper::map(current_gain, u16_half, u16::MAX, 1.0, Self::MAX_GAIN_VALUE)
+    } else {
       1.0
     };
 
@@ -59,9 +64,25 @@ impl AudioEffect for GainEffect {
   /// `value` takes an 'u16' with the new value.
   ///
   fn set_value(&mut self, key: &str, value: u16) -> Result<(), Error> {
+    if key == "gain" {
+      self.gain_value.store(value, Ordering::Relaxed);
+      Ok(())
+    } else {
+      Err(Error::new("Unknown parameter"))
+    }
+  }
+
+  /// The effect remains completely passive, simply producing an observer when asked
+  fn get_control_observer(&mut self, key: &str) -> Result<Arc<dyn ControlInputObserver>, Error> {
     match key {
-      "gain" => { self.gain = value; Ok(()) },
-      _ => Err(Error::new("Unknown parameter")),
+      "gain" => {
+        // Create an observer holding a cloned pointer to our atomic value
+        let observer = Arc::new(EffectInputObserver {
+          value_storage: Arc::clone(&self.gain_value),
+        });
+        Ok(observer)
+      },
+      _ => Err(Error::new("Parameter not found")),
     }
   }
 }

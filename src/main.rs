@@ -1,5 +1,6 @@
 use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_effects::gain_effect::GainEffect;
+use crate::control_input::{ControlInput, ControlInputObserver, RotaryInput};
 use crate::audio_effects::low_pass_filter_effect::LowPassFilter;
 use crate::routing_director::RoutingDirector;
 
@@ -11,6 +12,7 @@ mod routing_director;
 mod audio_bus;
 mod audio_output;
 mod auxiliary_output;
+mod control_input;
 
 const BUFFER_LENGTH: usize = 1024;
 
@@ -34,10 +36,21 @@ fn main() {
             .expect("Audio bus could not be enabled");
     }
 
+    // Create a new control input
+    let volume_dial = RotaryInput::new();
+
     // Add effects to the audio bus
     routing_director.audio_buses().iter_mut().for_each(|bus| {
         // Gain effect
         bus.add_effect(Box::new(GainEffect::new()));
+        let mut gain_effect = GainEffect::new();
+
+        let gain_observer = gain_effect.get_control_observer("gain")
+            .expect("Could not get observer from effect");
+
+        volume_dial.observable().register(gain_observer);
+
+        bus.add_effect(Box::new(gain_effect));
         bus.for_effect(0, |effect| effect
             .set_value("gain", 32767)
             .expect("Could not set gain value")
