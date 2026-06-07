@@ -11,6 +11,7 @@ mod routing_director;
 mod audio_bus;
 mod audio_output;
 mod auxiliary_output;
+mod control_input;
 mod external_connection;
 mod vcsgp_connection;
 
