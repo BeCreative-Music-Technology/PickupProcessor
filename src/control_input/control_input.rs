@@ -58,6 +58,6 @@ impl RotaryInput {
     const GPIO_DT: u8 = 15;
 
     pub fn observable(&self) -> Arc<ObservableControlInput> {
-        self.observable
+        self.observable.clone()
     }
 }

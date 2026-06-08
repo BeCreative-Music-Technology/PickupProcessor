@@ -1,6 +1,6 @@
 use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_effects::gain_effect::GainEffect;
-use crate::control_input::{ControlInput, ControlInputObserver, RotaryInput};
+use crate::control_input::{ControlInput, RotaryInput};
 use crate::audio_effects::low_pass_filter_effect::LowPassFilter;
 use crate::routing_director::RoutingDirector;
 
