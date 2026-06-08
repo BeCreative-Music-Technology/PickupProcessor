@@ -47,7 +47,7 @@ impl AudioOutput for AuxiliaryOutput {
     // Create a processing callback that reads data from ring buffer
     let process = ClosureProcessHandler::new(
       move |_: &Client, ps: &ProcessScope| -> Control {
-        out_port.as_mut_slice(ps).iter_mut().for_each(|mut out_sample| {
+        out_port.as_mut_slice(ps).iter_mut().for_each(|out_sample| {
           let in_sample  = consumer.pop().unwrap_or(0.0);
 
           *out_sample = in_sample;
