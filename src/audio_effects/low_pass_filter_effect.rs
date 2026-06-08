@@ -11,17 +11,23 @@ pub struct LowPassFilterEffect {
   frequency: Arc<AtomicU16>,
   q_factor: Arc<AtomicU16>,
   filter: An<FixedSvf<f32, LowpassMode<f32>>>,
+  low_pass_filter_id: String,
 }
+
+static LOW_PASS_FILTER_EFFECT_INCREMENTAL_ID: AtomicU16 = AtomicU16::new(0);
 
 impl AudioEffect for LowPassFilterEffect {
   fn new() -> Self
   where
       Self: Sized
   {
+    let low_pass_filter_id = format!("low_pass_filter_{}", LOW_PASS_FILTER_EFFECT_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed));
+    
     Self {
       frequency: Arc::new(AtomicU16::new(3273)), // 1000 Hz
       q_factor: Arc::new(AtomicU16::new(u16::MAX / 2)), // 0.707
       filter: lowpass_hz(1000.0, 0.707),
+      low_pass_filter_id,
     }
   }
 
@@ -89,5 +95,9 @@ impl AudioEffect for LowPassFilterEffect {
       },
       _ => Err(Error::new("Parameter not found")),
     }
+  }
+
+  fn id(&self) -> &str {
+    self.low_pass_filter_id.as_str()
   }
 }

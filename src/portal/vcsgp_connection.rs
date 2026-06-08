@@ -8,8 +8,9 @@ use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_effects::gain_effect::GainEffect;
 use crate::audio_effects::low_pass_filter_effect::LowPassFilterEffect;
 use crate::audio_effects::reverb_effect::ReverbEffect;
+use crate::control_input::{ControlInput, RotaryInput};
 use crate::error::Error;
-use crate::external_connection::ExternalConnection;
+use crate::portal::external_connection::ExternalConnection;
 use crate::routing_director::RoutingDirector;
 
 pub struct VcsgpConnection {
@@ -31,7 +32,7 @@ impl VcsgpConnection {
     }
   }
 
-  fn update_bus(audio_bus: &mut AudioBus, dto: &AudioBusDto) {
+  fn update_bus(audio_bus: &mut AudioBus, dto: &AudioBusDto, control_inputs: &mut Vec<dyn ControlInput>) {
     if dto.enabled { audio_bus.enable() }
     else { audio_bus.disable() }
 
@@ -42,52 +43,37 @@ impl VcsgpConnection {
           audio_bus.add_effect(Box::new(GainEffect::new()));
           let effects_len = audio_bus.effects().lock().unwrap().len();
           audio_bus.for_effect(effects_len - 1, |effect| {
-            let gain_value = effect_dto
-                .parameters["gain"]
-                .as_u64()
-                .unwrap() as u16;
-            _ = effect.set_value("gain", gain_value);
+            _ = Self::set_effect_value("gain", &effect_dto.parameters, effect);
           }).expect("Failed to change gain values");
         }
         EffectType::LowPassFilter => {
           audio_bus.add_effect(Box::new(LowPassFilterEffect::new()));
           let effects_len = audio_bus.effects().lock().unwrap().len();
           audio_bus.for_effect(effects_len - 1, |effect| {
-            let frequency_value = effect_dto
-                .parameters["frequency"]
-                .as_u64()
-                .unwrap() as u16;
-            _ = effect.set_value("frequency", frequency_value);
-            let q_factor_value = effect_dto
-                .parameters["q_factor"]
-                .as_u64()
-                .unwrap() as u16;
-            _ = effect.set_value("q_factor", q_factor_value);
+            _ = Self::set_effect_value("frequency", &effect_dto.parameters, effect);
+            _ = Self::set_effect_value("q_factor", &effect_dto.parameters, effect);
           }).expect("Failed to change low pass values");
         }
         EffectType::Reverb => {
           audio_bus.add_effect(Box::new(ReverbEffect::new()));
           let effects_len = audio_bus.effects().lock().unwrap().len();
           audio_bus.for_effect(effects_len - 1, |effect| {
-            let room_size_value = effect_dto
-                .parameters["room_size"]
-                .as_u64()
-                .unwrap() as u16;
-            _ = effect.set_value("room_size", room_size_value);
-            let reverb_decay_value = effect_dto
-                .parameters["reverb_decay"]
-                .as_u64()
-                .unwrap() as u16;
-            _ = effect.set_value("reverb_decay", reverb_decay_value);
-            let diffusion_value = effect_dto
-                .parameters["diffusion"]
-                .as_u64()
-                .unwrap() as u16;
-            _ = effect.set_value("diffusion", diffusion_value);
+            _ = Self::set_effect_value("room_size", &effect_dto.parameters, effect);
+            _ = Self::set_effect_value("reverb_decay", &effect_dto.parameters, effect);
+            _ = Self::set_effect_value("diffusion", &effect_dto.parameters, effect);
           }).expect("Failed to change reverb values");
         }
       }
     })
+  }
+
+  fn set_effect_value(key: &str, parameters: &Vec<Value>, effect: &mut dyn AudioEffect) -> Result<(), Error> {
+    let value_u64 = parameters[key].as_u64();
+    let value_u16 = match value_u64 {
+      Some(value) => value as u16,
+      None() => return Err(Error::new(format!("{} is not a u16", key).as_str())),
+    };
+    effect.set_value(key, value_u16)
   }
 }
 
@@ -110,10 +96,25 @@ impl ExternalConnection for VcsgpConnection {
     Ok(Self { listener })
   }
 
-  fn start(&mut self, routing_director: Arc<Mutex<RoutingDirector>>) {
+  fn start(
+    &mut self,
+    routing_director: Arc<Mutex<RoutingDirector>>,
+    input_controls: Arc<Mutex<Vec<dyn ControlInput>>>
+  ) {
     self.listen(Box::new(move |data| {
-      let audio_bus_dto: Vec<AudioBusDto> = serde_json::from_str(data).unwrap();
+      let dto: Dto = serde_json::from_str(data).unwrap();
 
+      // Add control inputs
+      dto.control_inputs.iter().for_each(|control_input_dto| {
+        match control_input_dto.control_type {
+          ControlType::Rotary => {
+            input_controls.lock().unwrap().push(RotaryInput::new());
+          }
+        }
+      });
+
+      // Add audio effects
+      let audio_bus_dto = dto.audio_buses;
       let mut audio_buses = routing_director
           .lock()
           .unwrap()
@@ -130,6 +131,23 @@ impl ExternalConnection for VcsgpConnection {
 }
 
 #[derive(Serialize, Deserialize)]
+struct Dto {
+  control_inputs: Vec<ControlInputDto>,
+  audio_buses: Vec<AudioBusDto>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ControlInputDto {
+  id: String,
+  control_type: ControlType,
+}
+
+#[derive(Serialize, Deserialize)]
+enum ControlType {
+  Rotary
+}
+
+#[derive(Serialize, Deserialize)]
 struct AudioBusDto {
   id: String,
   enabled: bool,
@@ -139,7 +157,7 @@ struct AudioBusDto {
 #[derive(Serialize, Deserialize)]
 struct EffectDto {
   effect_type: EffectType,
-  parameters: Value,
+  parameters: Vec<Value>,
 }
 
 #[derive(Serialize, Deserialize)]

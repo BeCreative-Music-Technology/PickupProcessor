@@ -1,5 +1,5 @@
 ﻿use std::sync::Arc;
-use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::atomic::{AtomicU16, AtomicU8, Ordering};
 use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_effects::effect_helper;
 use crate::audio_effects::effect_input_observer::EffectInputObserver;
@@ -9,7 +9,10 @@ use crate::error::Error;
 pub struct GainEffect {
   // Wrap the parameter in an Arc<AtomicU16> so it can be shared safely
   gain_value: Arc<AtomicU16>,
+  gain_id: String,
 }
+
+static GAIN_EFFECT_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
 
 impl GainEffect {
   const MIN_GAIN_VALUE: f32 = -6.0; // -6db
@@ -25,8 +28,11 @@ impl AudioEffect for GainEffect {
   where
       Self: Sized
   {
+    let gain_id = format!("gain_{}", GAIN_EFFECT_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed));
+    
     Self {
       gain_value: Arc::new(AtomicU16::new(u16::MAX / 2)),
+      gain_id,
     }
   }
 
@@ -84,5 +90,9 @@ impl AudioEffect for GainEffect {
       },
       _ => Err(Error::new("Parameter not found")),
     }
+  }
+
+  fn id(&self) -> &str {
+    self.gain_id.as_str()
   }
 }

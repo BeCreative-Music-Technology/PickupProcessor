@@ -1,20 +1,28 @@
+use std::ops::Deref;
 use std::thread;
 use std::time::Duration;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, Ordering};
 use rppal::gpio::{Gpio, Level};
 use super::control_input_observer::ControlChange;
 use super::observable_control_input::ObservableControlInput;
 
 pub trait ControlInput: Send + Sync {
     fn new() -> Self;
+    fn id(&self) -> String;
 }
 
 pub struct RotaryInput {
     observable: Arc<ObservableControlInput>,
+    rotary_id: String,
 }
+
+static ROTARY_INPUT_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
 
 impl ControlInput for RotaryInput {
     fn new() -> Self {
+        let rotary_id = format!("rotary_{}", ROTARY_INPUT_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed));
+
         let observable = Arc::new(ObservableControlInput::new());
         let observable_clone = Arc::clone(&observable);
 
@@ -48,7 +56,11 @@ impl ControlInput for RotaryInput {
             }
         });
 
-        Self { observable }
+        Self { observable, rotary_id }
+    }
+
+    fn id(&self) -> &str {
+        self.rotary_id.deref()
     }
 }
 

@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
-use crate::external_connection::ExternalConnection;
+use portal::external_connection::ExternalConnection;
 use crate::routing_director::RoutingDirector;
-use crate::vcsgp_connection::VcsgpConnection;
+use portal::vcsgp_connection::VcsgpConnection;
 
 mod audio_effects;
 mod audio_input;
@@ -12,8 +12,7 @@ mod audio_bus;
 mod audio_output;
 mod auxiliary_output;
 mod control_input;
-mod external_connection;
-mod vcsgp_connection;
+mod portal;
 
 const BUFFER_LENGTH: usize = 1024;
 
@@ -45,22 +44,11 @@ fn main() {
     }
     // TODO: Check if mutex lock is dropped
 
-    let mut protocol_connection = VcsgpConnection::new("")
-        .expect("Failed to create VCSGP connection");
-    protocol_connection.start(routing_director_clone);
+    let control_inputs = Arc::new(Mutex::new(Vec::new()));
 
-    // // Add effects to the audio bus
-    // routing_director.audio_buses().iter_mut().for_each(|bus| {
-    //     // Gain effect
-    //     bus.add_effect(Box::new(GainEffect::new()));
-    //     bus.for_effect(0, |effect| effect
-    //         .set_value("gain", 32767)
-    //         .expect("Could not set gain value")
-    //     ).expect("Could not add gain effect");
-    //
-    //     // Low pass filter effect
-    //     bus.add_effect(Box::new(LowPassFilter::new()));
-    // });
+    let mut protocol_connection = VcsgpConnection::new("127.0.0.1:31628")
+        .expect("Failed to create VCSGP connection");
+    protocol_connection.start(routing_director_clone, control_inputs);
 
     loop {
         routing_director.update();
