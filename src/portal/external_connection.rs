@@ -8,6 +8,6 @@ pub trait ExternalConnection {
   fn start(
     &mut self,
     routing_director: Arc<Mutex<RoutingDirector>>,
-    input_controls: Arc<Mutex<Vec<dyn ControlInput>>>
+    control_inputs: Arc<Mutex<Vec<Box<dyn ControlInput>>>>
   );
 }

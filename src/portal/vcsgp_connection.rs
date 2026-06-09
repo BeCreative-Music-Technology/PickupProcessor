@@ -96,7 +96,7 @@ impl ExternalConnection for VcsgpConnection {
   fn start(
     &mut self,
     routing_director: Arc<Mutex<RoutingDirector>>,
-    control_inputs: Arc<Mutex<Vec<dyn ControlInput>>>
+    control_inputs: Arc<Mutex<Vec<Box<dyn ControlInput>>>>
   ) {
     self.listen(Box::new(move |data| {
       // Convert incoming data to JSON
@@ -112,7 +112,7 @@ impl ExternalConnection for VcsgpConnection {
       dto.control_inputs.iter().for_each(|control_input_dto| {
         match control_input_dto.control_type {
           ControlType::Rotary => {
-            control_inputs.lock().unwrap().push(RotaryInput::new());
+            control_inputs.lock().unwrap().push(Box::new(RotaryInput::new()));
           }
         }
       });
