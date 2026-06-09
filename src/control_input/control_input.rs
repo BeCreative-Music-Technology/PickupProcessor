@@ -10,6 +10,7 @@ use super::observable_control_input::ObservableControlInput;
 pub trait ControlInput: Send + Sync {
     fn new() -> Self;
     fn id(&self) -> String;
+    fn observable(&self) -> Arc<ObservableControlInput>;
 }
 
 pub struct RotaryInput {
@@ -62,14 +63,14 @@ impl ControlInput for RotaryInput {
     fn id(&self) -> &str {
         self.rotary_id.deref()
     }
+
+    fn observable(&self) -> Arc<ObservableControlInput> {
+        self.observable.clone()
+    }
 }
 
 impl RotaryInput {
     // Define the BCM GPIO pin numbers
     const GPIO_CLK: u8 = 14;
     const GPIO_DT: u8 = 15;
-
-    pub fn observable(&self) -> Arc<ObservableControlInput> {
-        self.observable.clone()
-    }
 }
