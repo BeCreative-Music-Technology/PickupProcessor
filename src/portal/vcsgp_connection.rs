@@ -34,7 +34,7 @@ impl VcsgpConnection {
   fn update_bus(
     audio_bus: &mut AudioBus,
     dto: &AudioBusDto, 
-    control_inputs: Arc<Mutex<Vec<Box<dyn ControlInput>>>>
+    control_inputs: &Arc<Mutex<Vec<Box<dyn ControlInput>>>>
   ) {
     if dto.enabled { audio_bus.enable() }
     else { audio_bus.disable() }
@@ -60,7 +60,7 @@ impl VcsgpConnection {
           },
         };
         let control_input = match control_inputs.lock().unwrap()
-            .into_iter().find(|ci| ci.id() == parameter_dto.input_control_id) {
+            .iter().find(|ci| ci.id() == parameter_dto.input_control_id) {
           Some(ci) => ci,
           None => {
             println!("control input with id [{}] not found", parameter_dto.input_control_id);
@@ -124,7 +124,7 @@ impl ExternalConnection for VcsgpConnection {
           .iter_mut().for_each(|bus| {
             audio_bus_dto.iter().for_each(|dto| {
               if bus.id() == dto.id {
-                Self::update_bus(bus, dto, control_inputs);
+                Self::update_bus(bus, dto, &control_inputs);
               }
             });
           });
