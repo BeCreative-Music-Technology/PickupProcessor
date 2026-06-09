@@ -60,7 +60,7 @@ impl VcsgpConnection {
           },
         };
         let control_input = match control_inputs.lock().unwrap()
-            .iter().find(|ci| ci.id() == parameter_dto.input_control_id) {
+            .into_iter().find(|ci| ci.id() == parameter_dto.input_control_id) {
           Some(ci) => ci,
           None => {
             println!("control input with id [{}] not found", parameter_dto.input_control_id);
