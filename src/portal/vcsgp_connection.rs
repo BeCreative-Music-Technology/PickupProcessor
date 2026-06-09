@@ -32,7 +32,7 @@ impl VcsgpConnection {
   }
 
   fn update_bus(
-    audio_bus: &mut AudioBus, 
+    audio_bus: &mut AudioBus,
     dto: &AudioBusDto, 
     control_inputs: Arc<Mutex<Vec<Box<dyn ControlInput>>>>
   ) {

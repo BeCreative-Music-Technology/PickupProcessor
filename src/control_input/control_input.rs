@@ -8,7 +8,7 @@ use super::observable_control_input::ObservableControlInput;
 
 pub trait ControlInput: Send + Sync {
     fn new() -> Self where Self: Sized;
-    fn id(&self) -> String;
+    fn id(&self) -> &str;
     fn observable(&self) -> Arc<ObservableControlInput>;
 }
 
@@ -59,8 +59,8 @@ impl ControlInput for RotaryInput {
         Self { observable, rotary_id }
     }
 
-    fn id(&self) -> String {
-        self.rotary_id
+    fn id(&self) -> &str {
+        self.rotary_id.as_str()
     }
 
     fn observable(&self) -> Arc<ObservableControlInput> {
