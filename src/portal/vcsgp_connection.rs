@@ -138,33 +138,39 @@ struct Dto {
   audio_buses: Vec<AudioBusDto>,
 }
 
+#[derive(Serialize, Deserialize)]
 struct ControlInputDto {
   id: String,
   control_type: ControlType,
 }
 
+#[derive(Serialize, Deserialize)]
 enum ControlType {
   Rotary
 }
 
+#[derive(Serialize, Deserialize)]
 struct AudioBusDto {
   id: String,
   enabled: bool,
   effects: Vec<EffectDto>,
 }
 
+#[derive(Serialize, Deserialize)]
 struct EffectDto {
   id: String,
   effect_type: EffectType,
   parameters: Vec<EffectParameterDto>,
 }
 
+#[derive(Serialize, Deserialize)]
 struct EffectParameterDto {
   key: String,
   value: u16,
   input_control_id: String,
 }
 
+#[derive(Serialize, Deserialize)]
 enum EffectType {
   Gain,
   LowPassFilter,
