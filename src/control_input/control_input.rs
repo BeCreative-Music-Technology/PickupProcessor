@@ -1,4 +1,3 @@
-use std::ops::Deref;
 use std::thread;
 use std::time::Duration;
 use std::sync::Arc;
@@ -8,7 +7,7 @@ use super::control_input_observer::ControlChange;
 use super::observable_control_input::ObservableControlInput;
 
 pub trait ControlInput: Send + Sync {
-    fn new() -> Self;
+    fn new() -> Self where Self: Sized;
     fn id(&self) -> String;
     fn observable(&self) -> Arc<ObservableControlInput>;
 }
@@ -21,7 +20,7 @@ pub struct RotaryInput {
 static ROTARY_INPUT_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
 
 impl ControlInput for RotaryInput {
-    fn new() -> Self {
+    fn new() -> Self where Self: Sized {
         let rotary_id = format!("rotary_{}", ROTARY_INPUT_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed));
 
         let observable = Arc::new(ObservableControlInput::new());
@@ -60,8 +59,8 @@ impl ControlInput for RotaryInput {
         Self { observable, rotary_id }
     }
 
-    fn id(&self) -> &str {
-        self.rotary_id.deref()
+    fn id(&self) -> String {
+        self.rotary_id
     }
 
     fn observable(&self) -> Arc<ObservableControlInput> {
