@@ -34,7 +34,7 @@ impl VcsgpConnection {
   fn update_bus(
     audio_bus: &mut AudioBus, 
     dto: &AudioBusDto, 
-    control_inputs: Arc<Mutex<Vec<dyn ControlInput>>>
+    control_inputs: Arc<Mutex<Vec<Box<dyn ControlInput>>>>
   ) {
     if dto.enabled { audio_bus.enable() }
     else { audio_bus.disable() }
