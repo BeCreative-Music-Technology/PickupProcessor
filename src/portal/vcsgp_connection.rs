@@ -59,7 +59,8 @@ impl VcsgpConnection {
             return;
           },
         };
-        let control_input = match control_inputs.lock().unwrap()
+        let ci_guard = control_inputs.lock().unwrap();
+        let control_input = match ci_guard
             .iter().find(|ci| ci.id() == parameter_dto.input_control_id) {
           Some(ci) => ci,
           None => {
