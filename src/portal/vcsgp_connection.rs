@@ -76,6 +76,8 @@ impl VcsgpConnection {
           let observable = control_input.observable();
           observable.register(observer);
         });
+        
+        audio_bus.add_effect(effect);
       });
     });
   }
