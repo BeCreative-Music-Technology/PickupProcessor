@@ -105,8 +105,8 @@ impl ExternalConnection for VcsgpConnection {
     routing_director: Arc<Mutex<RoutingDirector>>,
     control_inputs: Arc<Mutex<Vec<Box<dyn ControlInput>>>>
   ) {
-    thread::spawn(move || {
-      self.listen(Box::new(move |data| {
+    self.listen(Box::new(move |data| {
+      thread::spawn(move || {
         // Convert incoming data to JSON
         let dto: Dto = match serde_json::from_str(data) {
           Ok(dto) => dto,
@@ -136,8 +136,8 @@ impl ExternalConnection for VcsgpConnection {
             }
           });
         });
-      }));
-    });
+      });
+    }));
   }
 }
 
