@@ -1,23 +1,23 @@
 {
   "control_inputs": [
     {
-      "id": "rotary_1",
+      "id": "rotary_0",
       "control_type": "rotary"
     }
   ],
   "audio_buses": [
     {
-      "id": "bus_1",
+      "id": "bus_0",
       "enabled": true,
       "effects": [
         {
-          "id": "gain_1",
+          "id": "gain_0",
           "effect_type": "gain",
           "parameters": [
             {
               "key": "gain",
               "value": 32767,
-              "input_control_id": "rotary_1"
+              "input_control_id": "rotary_0"
             }
           ]
         }
