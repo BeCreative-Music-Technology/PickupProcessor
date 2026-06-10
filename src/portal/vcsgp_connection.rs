@@ -40,40 +40,42 @@ impl VcsgpConnection {
     dto: &AudioBusDto, 
     control_inputs: &Arc<Mutex<Vec<Box<dyn ControlInput>>>>
   ) {
-    if dto.enabled { audio_bus.enable() }
-    else { audio_bus.disable() }
+    thread::spawn(move || {
+      if dto.enabled { audio_bus.enable() }
+      else { audio_bus.disable() }
 
-    audio_bus.clear_effects();
-    dto.effects.iter().for_each(|effect_dto| {
-      // Create new effect instance
-      let mut effect: Box<dyn AudioEffect> = match effect_dto.effect_type {
-        EffectType::Gain => Box::new(GainEffect::new()),
-        EffectType::LowPassFilter => Box::new(LowPassFilterEffect::new()),
-        EffectType::Reverb => Box::new(ReverbEffect::new()),
-      };
-
-      // Set effect parameters and attach control inputs
-      effect_dto.parameters.iter().for_each(|parameter_dto| {
-        _ = effect.set_value(parameter_dto.key.as_str(), parameter_dto.value);
-
-        let observer = match effect.get_control_observer(parameter_dto.key.as_str()) {
-          Ok(observer) => observer,
-          Err(e) => {
-            logger::error(LOG_ENVIRONMENT, e);
-            return;
-          },
+      audio_bus.clear_effects();
+      dto.effects.iter().for_each(|effect_dto| {
+        // Create new effect instance
+        let mut effect: Box<dyn AudioEffect> = match effect_dto.effect_type {
+          EffectType::Gain => Box::new(GainEffect::new()),
+          EffectType::LowPassFilter => Box::new(LowPassFilterEffect::new()),
+          EffectType::Reverb => Box::new(ReverbEffect::new()),
         };
-        let ci_guard = control_inputs.lock().unwrap();
-        let control_input = match ci_guard
+
+        // Set effect parameters and attach control inputs
+        effect_dto.parameters.iter().for_each(|parameter_dto| {
+          _ = effect.set_value(parameter_dto.key.as_str(), parameter_dto.value);
+
+          let observer = match effect.get_control_observer(parameter_dto.key.as_str()) {
+            Ok(observer) => observer,
+            Err(e) => {
+              logger::error(LOG_ENVIRONMENT, e);
+              return;
+            },
+          };
+          let ci_guard = control_inputs.lock().unwrap();
+          let control_input = match ci_guard
             .iter().find(|ci| ci.id() == parameter_dto.input_control_id) {
-          Some(ci) => ci,
-          None => {
-            logger::error_str(LOG_ENVIRONMENT, &format!("control input with id [{}] not found", parameter_dto.input_control_id));
-            return;
-          },
-        };
-        let observable = control_input.observable();
-        observable.register(observer);
+            Some(ci) => ci,
+            None => {
+              logger::error_str(LOG_ENVIRONMENT, &format!("control input with id [{}] not found", parameter_dto.input_control_id));
+              return;
+            },
+          };
+          let observable = control_input.observable();
+          observable.register(observer);
+        });
       });
     });
   }
@@ -103,39 +105,37 @@ impl ExternalConnection for VcsgpConnection {
     routing_director: Arc<Mutex<RoutingDirector>>,
     control_inputs: Arc<Mutex<Vec<Box<dyn ControlInput>>>>
   ) {
-    thread::spawn(move || {
-      self.listen(Box::new(move |data| {
-        // Convert incoming data to JSON
-        let dto: Dto = match serde_json::from_str(data) {
-          Ok(dto) => dto,
-          Err(e) => {
-            logger::error_str(LOG_ENVIRONMENT, &e.to_string());
-            return;
-          }
-        };
+    self.listen(Box::new(move |data| {
+      // Convert incoming data to JSON
+      let dto: Dto = match serde_json::from_str(data) {
+        Ok(dto) => dto,
+        Err(e) => {
+          logger::error_str(LOG_ENVIRONMENT, &e.to_string());
+          return;
+        }
+      };
 
-        // Add control inputs
-        dto.control_inputs.iter().for_each(|control_input_dto| {
-          match control_input_dto.control_type {
-            ControlType::Rotary => {
-              control_inputs.lock().unwrap().push(Box::new(RotaryInput::new()));
-            }
+      // Add control inputs
+      dto.control_inputs.iter().for_each(|control_input_dto| {
+        match control_input_dto.control_type {
+          ControlType::Rotary => {
+            control_inputs.lock().unwrap().push(Box::new(RotaryInput::new()));
+          }
+        }
+      });
+
+      // Add audio effects
+      let audio_bus_dto = dto.audio_buses;
+      routing_director.lock().unwrap()
+        .audio_buses()
+        .iter_mut().for_each(|bus| {
+        audio_bus_dto.iter().for_each(|dto| {
+          if bus.id() == dto.id {
+            Self::update_bus(bus, dto, &control_inputs);
           }
         });
-
-        // Add audio effects
-        let audio_bus_dto = dto.audio_buses;
-        routing_director.lock().unwrap()
-          .audio_buses()
-          .iter_mut().for_each(|bus| {
-          audio_bus_dto.iter().for_each(|dto| {
-            if bus.id() == dto.id {
-              Self::update_bus(bus, dto, &control_inputs);
-            }
-          });
-        });
-      }));
-    });
+      });
+    }));
   }
 }
 
