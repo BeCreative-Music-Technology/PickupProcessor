@@ -38,11 +38,12 @@ impl AudioOutput for AuxiliaryOutput {
       Self: Sized
   {
     // Create a JACK client and register output port
-    let (client, _status) = Client::new(Self::CLIENT_NAME, ClientOptions::default()).unwrap();
     let incremental_id = AUX_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed);
+    let client_name = format!("{}_{}", Self::CLIENT_NAME, incremental_id);
+    let (client, _status) = Client::new(&client_name, ClientOptions::default()).unwrap();
     let port_name = format!("{}_{}", Self::PORT_NAME, incremental_id);
     let mut out_port = client.register_port(&port_name, AudioOut::default()).unwrap();
-    let aux_id = format!("{}:{}", Self::CLIENT_NAME, port_name);
+    let aux_id = format!("{}:{}", client_name, port_name);
 
     // Create a processing callback that reads data from ring buffer
     let process = ClosureProcessHandler::new(
