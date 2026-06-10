@@ -106,6 +106,8 @@ impl ExternalConnection for VcsgpConnection {
     control_inputs: Arc<Mutex<Vec<Box<dyn ControlInput>>>>
   ) {
     self.listen(Box::new(move |data| {
+      let thread_routing_director = routing_director.clone();
+
       thread::spawn(move || {
         // Convert incoming data to JSON
         let dto: Dto = match serde_json::from_str(data) {
@@ -127,7 +129,7 @@ impl ExternalConnection for VcsgpConnection {
 
         // Add audio effects
         let audio_bus_dto = dto.audio_buses;
-        routing_director.lock().unwrap()
+        thread_routing_director.lock().unwrap()
           .audio_buses()
           .iter_mut().for_each(|bus| {
           audio_bus_dto.iter().for_each(|dto| {
