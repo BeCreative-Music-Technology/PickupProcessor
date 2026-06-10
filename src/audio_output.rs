@@ -1,7 +1,7 @@
 ﻿use rtrb::Consumer;
 use crate::error::Error;
 
-pub trait AudioOutput {
+pub trait AudioOutput: Send + Sync {
   fn open_stream(
     output_name: &str,
     consumer: Consumer<f32>
