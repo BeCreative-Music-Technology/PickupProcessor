@@ -1,6 +1,7 @@
 ﻿use std::io::Read;
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
+use std::thread;
 use serde::{Deserialize, Serialize};
 use crate::audio_bus::AudioBus;
 use crate::audio_effects::audio_effect::AudioEffect;
@@ -102,37 +103,39 @@ impl ExternalConnection for VcsgpConnection {
     routing_director: Arc<Mutex<RoutingDirector>>,
     control_inputs: Arc<Mutex<Vec<Box<dyn ControlInput>>>>
   ) {
-    self.listen(Box::new(move |data| {
-      // Convert incoming data to JSON
-      let dto: Dto = match serde_json::from_str(data) {
-        Ok(dto) => dto,
-        Err(e) => {
-          logger::error_str(LOG_ENVIRONMENT, &e.to_string());
-          return;
-        }
-      };
-
-      // Add control inputs
-      dto.control_inputs.iter().for_each(|control_input_dto| {
-        match control_input_dto.control_type {
-          ControlType::Rotary => {
-            control_inputs.lock().unwrap().push(Box::new(RotaryInput::new()));
+    thread::spawn(move || {
+      self.listen(Box::new(move |data| {
+        // Convert incoming data to JSON
+        let dto: Dto = match serde_json::from_str(data) {
+          Ok(dto) => dto,
+          Err(e) => {
+            logger::error_str(LOG_ENVIRONMENT, &e.to_string());
+            return;
           }
-        }
-      });
+        };
 
-      // Add audio effects
-      let audio_bus_dto = dto.audio_buses;
-      routing_director.lock().unwrap()
+        // Add control inputs
+        dto.control_inputs.iter().for_each(|control_input_dto| {
+          match control_input_dto.control_type {
+            ControlType::Rotary => {
+              control_inputs.lock().unwrap().push(Box::new(RotaryInput::new()));
+            }
+          }
+        });
+
+        // Add audio effects
+        let audio_bus_dto = dto.audio_buses;
+        routing_director.lock().unwrap()
           .audio_buses()
           .iter_mut().for_each(|bus| {
-            audio_bus_dto.iter().for_each(|dto| {
-              if bus.id() == dto.id {
-                Self::update_bus(bus, dto, &control_inputs);
-              }
-            });
+          audio_bus_dto.iter().for_each(|dto| {
+            if bus.id() == dto.id {
+              Self::update_bus(bus, dto, &control_inputs);
+            }
           });
-    }));
+        });
+      }));
+    });
   }
 }
 
