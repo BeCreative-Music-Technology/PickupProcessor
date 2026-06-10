@@ -40,7 +40,7 @@ impl VcsgpConnection {
     dto: &AudioBusDto, 
     control_inputs: &Arc<Mutex<Vec<Box<dyn ControlInput>>>>
   ) {
-    thread::spawn(|| {
+    thread::spawn(move || {
       if dto.enabled { audio_bus.enable() }
       else { audio_bus.disable() }
 

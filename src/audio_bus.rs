@@ -11,7 +11,7 @@ use crate::logger;
 
 pub struct AudioBus {
   enabled: Arc<AtomicBool>,
-  audio_output: Box<dyn AudioOutput>,
+  audio_output: Arc<Box<dyn AudioOutput>>,
   effects: Arc<Mutex<Vec<Box<dyn AudioEffect>>>>,
   effect_buffer: Arc<Mutex<Vec<f32>>>,
   bus_id: String,
@@ -97,7 +97,7 @@ impl AudioBus {
 
     Ok(Self {
       enabled: atomic_enabled,
-      audio_output: Box::new(audio_output),
+      audio_output: Arc::new(Box::new(audio_output)),
       effects,
       effect_buffer,
       bus_id,
