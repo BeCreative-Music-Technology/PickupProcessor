@@ -14,7 +14,7 @@ pub struct GainEffect {
 }
 
 static GAIN_EFFECT_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
-static LOG_ENVIRONMENT: String = String::from("GainEffect");
+static LOG_ENVIRONMENT: &str = "GainEffect";
 
 impl GainEffect {
   const MIN_GAIN_VALUE: f32 = -6.0; // -6db
@@ -32,7 +32,7 @@ impl AudioEffect for GainEffect {
   {
     let gain_id = format!("gain_{}", GAIN_EFFECT_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed));
 
-    logger::info(&LOG_ENVIRONMENT, &format!("{} created", gain_id));
+    logger::info(LOG_ENVIRONMENT, &format!("{} created", gain_id));
     
     Self {
       gain_value: Arc::new(AtomicU16::new(u16::MAX / 2)),
@@ -79,7 +79,7 @@ impl AudioEffect for GainEffect {
     } else {
       return Err(Error::new("Unknown parameter"))
     }
-    logger::info(&LOG_ENVIRONMENT, &format!("set parameter {} to {}", key, value));
+    logger::info(LOG_ENVIRONMENT, &format!("set parameter {} to {}", key, value));
     Ok(())
   }
 

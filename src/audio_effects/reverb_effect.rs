@@ -19,7 +19,7 @@ pub struct ReverbEffect
 }
 
 static REVERB_EFFECT_INCREMENTAL_ID: AtomicU16 = AtomicU16::new(0);
-static LOG_ENVIRONMENT: String = String::from("ReverbEffect");
+static LOG_ENVIRONMENT: &str = "ReverbEffect";
 
 impl AudioEffect for ReverbEffect{
   fn new() -> Self
@@ -32,7 +32,7 @@ impl AudioEffect for ReverbEffect{
     let reverb_decay = 6524; // 2 seconds
     let dampening = u16::MAX / 2; // 0.5
 
-    logger::info(&LOG_ENVIRONMENT, &format!("{} created", reverb_id));
+    logger::info(LOG_ENVIRONMENT, &format!("{} created", reverb_id));
 
     Self {
       room_size: Arc::new(AtomicU16::new(room_size)),
@@ -83,7 +83,7 @@ impl AudioEffect for ReverbEffect{
       "dampening" => self.dampening.store(value, Ordering::Relaxed),
       _ => return Err(Error::new("Unknown parameter")),
     };
-    logger::info(&LOG_ENVIRONMENT, &format!("set parameter {} to {}", key, value));
+    logger::info(LOG_ENVIRONMENT, &format!("set parameter {} to {}", key, value));
     Ok(())
   }
 

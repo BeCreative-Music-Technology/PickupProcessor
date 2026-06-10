@@ -19,7 +19,7 @@ pub struct RotaryInput {
 }
 
 static ROTARY_INPUT_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
-static LOG_ENVIRONMENT_ROTARY: String = String::from("RotaryInput");
+static LOG_ENVIRONMENT_ROTARY: &str ="RotaryInput";
 
 impl ControlInput for RotaryInput {
     fn new() -> Self where Self: Sized {
@@ -58,7 +58,7 @@ impl ControlInput for RotaryInput {
             }
         });
 
-        logger::info(&LOG_ENVIRONMENT_ROTARY, "created");
+        logger::info(LOG_ENVIRONMENT_ROTARY, "created");
 
         Self { observable, rotary_id }
     }

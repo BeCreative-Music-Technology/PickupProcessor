@@ -16,7 +16,7 @@ pub struct LowPassFilterEffect {
 }
 
 static LOW_PASS_FILTER_EFFECT_INCREMENTAL_ID: AtomicU16 = AtomicU16::new(0);
-static LOG_ENVIRONMENT: String = String::from("LowPassFilterEffect");
+static LOG_ENVIRONMENT: &str = "LowPassFilterEffect";
 
 impl AudioEffect for LowPassFilterEffect {
   fn new() -> Self
@@ -25,7 +25,7 @@ impl AudioEffect for LowPassFilterEffect {
   {
     let low_pass_filter_id = format!("low_pass_filter_{}", LOW_PASS_FILTER_EFFECT_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed));
 
-    logger::info(&LOG_ENVIRONMENT, &format!("{} created", low_pass_filter_id));
+    logger::info(LOG_ENVIRONMENT, &format!("{} created", low_pass_filter_id));
 
     Self {
       frequency: Arc::new(AtomicU16::new(3273)), // 1000 Hz
@@ -80,7 +80,7 @@ impl AudioEffect for LowPassFilterEffect {
       "q_factor" => self.q_factor.store(value, Ordering::Relaxed),
       _ => return Err(Error::new("Unknown parameter")),
     };
-    logger::info(&LOG_ENVIRONMENT, &format!("set parameter {} to {}", key, value));
+    logger::info(LOG_ENVIRONMENT, &format!("set parameter {} to {}", key, value));
     Ok(())
   }
 

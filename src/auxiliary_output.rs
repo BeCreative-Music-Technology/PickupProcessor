@@ -19,7 +19,7 @@ impl AuxiliaryOutput {
 }
 
 static AUX_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
-static LOG_ENVIRONMENT: String = String::from("AuxiliaryOutput");
+static LOG_ENVIRONMENT: &str = "AuxiliaryOutput";
 
 impl AudioOutput for AuxiliaryOutput {
   ///
@@ -66,9 +66,9 @@ impl AudioOutput for AuxiliaryOutput {
       let active_client = client.activate_async((), process).unwrap();
 
       if let Err(e) = active_client.as_client().connect_ports_by_name(&source, &destination) {
-        logger::error_str(&LOG_ENVIRONMENT, &format!("Could not connect {} to {}: {:?}", source, destination, e))
+        logger::error_str(LOG_ENVIRONMENT, &format!("Could not connect {} to {}: {:?}", source, destination, e))
       } else {
-        logger::info(&LOG_ENVIRONMENT, &format!("Connected {} -> {}", source, destination));
+        logger::info(LOG_ENVIRONMENT, &format!("Connected {} -> {}", source, destination));
       }
 
       thread::park();

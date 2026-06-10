@@ -19,7 +19,7 @@ pub struct AudioBus {
 }
 
 static BUS_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
-static LOG_ENVIRONMENT: String = String::from("AudioBus");
+static LOG_ENVIRONMENT: &str = "AudioBus";
 
 impl AudioBus {
   ///
@@ -93,7 +93,7 @@ impl AudioBus {
       _ = output_producer.push_partial_slice(&processed_audio);
     });
     
-    logger::info(&LOG_ENVIRONMENT, &format!("{} created", &bus_id));
+    logger::info(LOG_ENVIRONMENT, &format!("{} created", &bus_id));
 
     Ok(Self {
       enabled: atomic_enabled,
@@ -109,7 +109,7 @@ impl AudioBus {
   /// Adds new effect to the effect chain
   ///
   pub fn add_effect(&mut self, effect: Box<dyn AudioEffect>) {
-    logger::info(&LOG_ENVIRONMENT, &format!("{} added to {}", effect.id(), self.bus_id));
+    logger::info(LOG_ENVIRONMENT, &format!("{} added to {}", effect.id(), self.bus_id));
     self.effects.lock().unwrap().push(effect);
   }
 
@@ -131,7 +131,7 @@ impl AudioBus {
   /// Removes all effects from the effect chain
   ///
   pub fn clear_effects(&mut self) {
-    logger::info(&LOG_ENVIRONMENT, &format!("cleared effect chain for {}", self.bus_id));
+    logger::info(LOG_ENVIRONMENT, &format!("cleared effect chain for {}", self.bus_id));
     self.effects.lock().unwrap().clear();
   }
 
@@ -158,7 +158,7 @@ impl AudioBus {
   /// Enables the `AudioBus` so it starts processing the incoming data.
   ///
   pub fn enable(&mut self) {
-    logger::info(&LOG_ENVIRONMENT, &format!("{} enabled", &BUS_INCREMENTAL_ID.load(Ordering::Relaxed)));
+    logger::info(LOG_ENVIRONMENT, &format!("{} enabled", &BUS_INCREMENTAL_ID.load(Ordering::Relaxed)));
     self.enabled.store(true, Ordering::Relaxed);
   }
 
@@ -166,7 +166,7 @@ impl AudioBus {
   /// Disables the `AudioBus` so it stops processing the incoming data.
   ///
   pub fn disable(&mut self) {
-    logger::info(&LOG_ENVIRONMENT, &format!("{} disabled", &BUS_INCREMENTAL_ID.load(Ordering::Relaxed)));
+    logger::info(LOG_ENVIRONMENT, &format!("{} disabled", &BUS_INCREMENTAL_ID.load(Ordering::Relaxed)));
     self.enabled.store(false, Ordering::Relaxed);
   }
 

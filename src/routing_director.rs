@@ -5,7 +5,7 @@ use crate::auxiliary_input::AuxiliaryInput;
 use crate::error::Error;
 use crate::logger;
 
-static LOG_ENVIRONMENT: String = String::from("RoutingDirector");
+static LOG_ENVIRONMENT: &str = "RoutingDirector";
 
 pub struct RoutingDirector {
   audio_input: (Box<dyn AudioInput>, Consumer<f32>),
@@ -52,7 +52,7 @@ impl RoutingDirector {
 
     let audio_buses = Vec::new();
 
-    logger::info(&LOG_ENVIRONMENT, "created");
+    logger::info(LOG_ENVIRONMENT, "created");
 
     Ok(RoutingDirector {
       audio_input: (Box::new(audio_input), input_consumer),
