@@ -97,7 +97,7 @@ impl AudioBus {
 
     Ok(Self {
       enabled: atomic_enabled,
-      audio_output: Arc::new(audio_output),
+      audio_output: Box::new(audio_output),
       effects,
       effect_buffer,
       bus_id,
