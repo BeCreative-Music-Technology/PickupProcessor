@@ -52,6 +52,7 @@ fn main() {
     protocol_connection.start(routing_director_clone, control_inputs);
 
     loop {
+        logger::log("test", "test");
         routing_director.update();
     }
 }
