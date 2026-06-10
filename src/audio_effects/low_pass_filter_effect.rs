@@ -6,6 +6,7 @@ use crate::audio_effects::effect_helper;
 use crate::audio_effects::effect_input_observer::EffectInputObserver;
 use crate::control_input::ControlInputObserver;
 use crate::error::Error;
+use crate::logger;
 
 pub struct LowPassFilterEffect {
   frequency: Arc<AtomicU16>,
@@ -15,6 +16,7 @@ pub struct LowPassFilterEffect {
 }
 
 static LOW_PASS_FILTER_EFFECT_INCREMENTAL_ID: AtomicU16 = AtomicU16::new(0);
+static LOG_ENVIRONMENT: String = String::from("LowPassFilterEffect");
 
 impl AudioEffect for LowPassFilterEffect {
   fn new() -> Self
@@ -22,7 +24,9 @@ impl AudioEffect for LowPassFilterEffect {
       Self: Sized
   {
     let low_pass_filter_id = format!("low_pass_filter_{}", LOW_PASS_FILTER_EFFECT_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed));
-    
+
+    logger::info(&LOG_ENVIRONMENT, &format!("{} created", low_pass_filter_id));
+
     Self {
       frequency: Arc::new(AtomicU16::new(3273)), // 1000 Hz
       q_factor: Arc::new(AtomicU16::new(u16::MAX / 2)), // 0.707
@@ -76,6 +80,7 @@ impl AudioEffect for LowPassFilterEffect {
       "q_factor" => self.q_factor.store(value, Ordering::Relaxed),
       _ => return Err(Error::new("Unknown parameter")),
     };
+    logger::info(&LOG_ENVIRONMENT, &format!("set parameter {} to {}", key, value));
     Ok(())
   }
 

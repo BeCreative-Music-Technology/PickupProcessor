@@ -8,6 +8,7 @@ use crate::audio_effects::effect_helper;
 use crate::audio_effects::effect_input_observer::EffectInputObserver;
 use crate::control_input::ControlInputObserver;
 use crate::error::Error;
+use crate::logger;
 
 pub struct ReverbEffect
 {
@@ -18,6 +19,7 @@ pub struct ReverbEffect
 }
 
 static REVERB_EFFECT_INCREMENTAL_ID: AtomicU16 = AtomicU16::new(0);
+static LOG_ENVIRONMENT: String = String::from("ReverbEffect");
 
 impl AudioEffect for ReverbEffect{
   fn new() -> Self
@@ -29,6 +31,8 @@ impl AudioEffect for ReverbEffect{
     let room_size = u16::MAX / 2; // 20 meters
     let reverb_decay = 6524; // 2 seconds
     let dampening = u16::MAX / 2; // 0.5
+
+    logger::info(&LOG_ENVIRONMENT, &format!("{} created", reverb_id));
 
     Self {
       room_size: Arc::new(AtomicU16::new(room_size)),
@@ -79,6 +83,7 @@ impl AudioEffect for ReverbEffect{
       "dampening" => self.dampening.store(value, Ordering::Relaxed),
       _ => return Err(Error::new("Unknown parameter")),
     };
+    logger::info(&LOG_ENVIRONMENT, &format!("set parameter {} to {}", key, value));
     Ok(())
   }
 

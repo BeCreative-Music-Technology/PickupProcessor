@@ -13,6 +13,7 @@ mod audio_output;
 mod auxiliary_output;
 mod control_input;
 mod portal;
+mod logger;
 
 const BUFFER_LENGTH: usize = 1024;
 

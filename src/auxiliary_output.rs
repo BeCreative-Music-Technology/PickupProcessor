@@ -6,6 +6,7 @@ use jack::contrib::ClosureProcessHandler;
 use rtrb::Consumer;
 use crate::audio_output::AudioOutput;
 use crate::error::Error;
+use crate::logger;
 
 pub struct AuxiliaryOutput {
   thread: Option<JoinHandle<()>>,
@@ -18,6 +19,7 @@ impl AuxiliaryOutput {
 }
 
 static AUX_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
+static LOG_ENVIRONMENT: String = String::from("AuxiliaryOutput");
 
 impl AudioOutput for AuxiliaryOutput {
   ///
@@ -64,9 +66,9 @@ impl AudioOutput for AuxiliaryOutput {
       let active_client = client.activate_async((), process).unwrap();
 
       if let Err(e) = active_client.as_client().connect_ports_by_name(&source, &destination) {
-        println!("Could not connect {} to {}: {:?}", source, destination, e);
+        logger::error_str(&LOG_ENVIRONMENT, &format!("Could not connect {} to {}: {:?}", source, destination, e))
       } else {
-        println!("Connected {} -> {}", source, destination)
+        logger::info(&LOG_ENVIRONMENT, &format!("Connected {} -> {}", source, destination));
       }
 
       thread::park();

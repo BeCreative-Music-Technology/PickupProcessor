@@ -1,4 +1,5 @@
-﻿use std::io::Read;
+﻿use std::error::Error;
+use std::io::Read;
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
@@ -9,8 +10,11 @@ use crate::audio_effects::low_pass_filter_effect::LowPassFilterEffect;
 use crate::audio_effects::reverb_effect::ReverbEffect;
 use crate::control_input::{ControlInput, RotaryInput};
 use crate::error::Error;
+use crate::logger;
 use crate::portal::external_connection::ExternalConnection;
 use crate::routing_director::RoutingDirector;
+
+static LOG_ENVIRONMENT: String = String::from("VcsgpConnection");
 
 pub struct VcsgpConnection {
   listener: TcpListener,
@@ -55,7 +59,7 @@ impl VcsgpConnection {
         let observer = match effect.get_control_observer(parameter_dto.key.as_str()) {
           Ok(observer) => observer,
           Err(e) => {
-            println!("{}", e.message);
+            logger::error(&LOG_ENVIRONMENT, e);
             return;
           },
         };
@@ -64,7 +68,7 @@ impl VcsgpConnection {
             .iter().find(|ci| ci.id() == parameter_dto.input_control_id) {
           Some(ci) => ci,
           None => {
-            println!("control input with id [{}] not found", parameter_dto.input_control_id);
+            logger::error_str(&LOG_ENVIRONMENT, &format!("control input with id [{}] not found", parameter_dto.input_control_id));
             return;
           },
         };
@@ -104,7 +108,7 @@ impl ExternalConnection for VcsgpConnection {
       let dto: Dto = match serde_json::from_str(data) {
         Ok(dto) => dto,
         Err(e) => {
-          println!("{}", e.to_string());
+          logger::error_str(&LOG_ENVIRONMENT, &e.to_string());
           return;
         }
       };

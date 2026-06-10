@@ -3,6 +3,7 @@ use std::time::Duration;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 use rppal::gpio::{Gpio, Level};
+use crate::logger;
 use super::control_input_observer::ControlChange;
 use super::observable_control_input::ObservableControlInput;
 
@@ -18,6 +19,7 @@ pub struct RotaryInput {
 }
 
 static ROTARY_INPUT_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
+static LOG_ENVIRONMENT_ROTARY: String = String::from("RotaryInput");
 
 impl ControlInput for RotaryInput {
     fn new() -> Self where Self: Sized {
@@ -55,6 +57,8 @@ impl ControlInput for RotaryInput {
                 thread::sleep(Duration::from_micros(500));
             }
         });
+
+        logger::info(&LOG_ENVIRONMENT_ROTARY, "created");
 
         Self { observable, rotary_id }
     }

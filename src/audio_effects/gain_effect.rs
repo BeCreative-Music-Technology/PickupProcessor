@@ -5,6 +5,7 @@ use crate::audio_effects::effect_helper;
 use crate::audio_effects::effect_input_observer::EffectInputObserver;
 use crate::control_input::{ControlInputObserver};
 use crate::error::Error;
+use crate::logger;
 
 pub struct GainEffect {
   // Wrap the parameter in an Arc<AtomicU16> so it can be shared safely
@@ -13,6 +14,7 @@ pub struct GainEffect {
 }
 
 static GAIN_EFFECT_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
+static LOG_ENVIRONMENT: String = String::from("GainEffect");
 
 impl GainEffect {
   const MIN_GAIN_VALUE: f32 = -6.0; // -6db
@@ -29,6 +31,8 @@ impl AudioEffect for GainEffect {
       Self: Sized
   {
     let gain_id = format!("gain_{}", GAIN_EFFECT_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed));
+
+    logger::info(&LOG_ENVIRONMENT, &format!("{} created", gain_id));
     
     Self {
       gain_value: Arc::new(AtomicU16::new(u16::MAX / 2)),
@@ -72,10 +76,11 @@ impl AudioEffect for GainEffect {
   fn set_value(&mut self, key: &str, value: u16) -> Result<(), Error> {
     if key == "gain" {
       self.gain_value.store(value, Ordering::Relaxed);
-      Ok(())
     } else {
-      Err(Error::new("Unknown parameter"))
+      return Err(Error::new("Unknown parameter"))
     }
+    logger::info(&LOG_ENVIRONMENT, &format!("set parameter {} to {}", key, value));
+    Ok(())
   }
 
   /// The effect remains completely passive, simply producing an observer when asked
