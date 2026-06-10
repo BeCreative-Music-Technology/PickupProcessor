@@ -11,7 +11,7 @@ use crate::logger;
 
 pub struct AudioBus {
   enabled: Arc<AtomicBool>,
-  audio_output: Arc<Box<dyn AudioOutput>>,
+  audio_output: Box<dyn AudioOutput>,
   effects: Arc<Mutex<Vec<Box<dyn AudioEffect>>>>,
   effect_buffer: Arc<Mutex<Vec<f32>>>,
   bus_id: String,
@@ -92,12 +92,12 @@ impl AudioBus {
 
       _ = output_producer.push_partial_slice(&processed_audio);
     });
-    
+
     logger::info(LOG_ENVIRONMENT, &format!("{} created", &bus_id));
 
     Ok(Self {
       enabled: atomic_enabled,
-      audio_output: Arc::new(Box::new(audio_output)),
+      audio_output: Arc::new(audio_output),
       effects,
       effect_buffer,
       bus_id,
