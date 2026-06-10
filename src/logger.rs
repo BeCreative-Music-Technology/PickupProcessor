@@ -2,15 +2,15 @@
 use crate::error::Error;
 
 pub fn info(env: &str, info: &str) {
-  println!("{}: {} - {}", "INFO".blue(), env, info);
+  println!("{} {} - {}", "INFO:".truecolor(247, 57, 216).bold(), env.bold(), info);
 }
 
 pub fn log(env: &str, log: &str) {
-  println!("{}: {} - {}", "LOG".blue(), env, log);
+  println!("{} {} - {}", "LOG:".cyan().bold(), env.bold(), log);
 }
 
 pub fn warn(env: &str, warn: &str) {
-  println!("{}: {} - {}", "WARN".yellow(), env, warn);
+  println!("{} {} - {}", "WARN:".yellow().bold(), env.bold(), warn);
 }
 
 pub fn error(env: &str, err: Error) {
@@ -18,5 +18,5 @@ pub fn error(env: &str, err: Error) {
 }
 
 pub fn error_str(env: &str, err: &str) {
-  println!("{}: {} - {}", "ERROR".red(), env, err);
+  println!("{} {} - {}", "ERROR:".red().bold(), env.bold(), err);
 }
