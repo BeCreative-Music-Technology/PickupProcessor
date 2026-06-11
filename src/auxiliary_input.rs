@@ -6,6 +6,7 @@ use jack::contrib::ClosureProcessHandler;
 use rtrb::Producer;
 use crate::audio_input::AudioInput;
 use crate::error::Error;
+use crate::logger;
 
 pub struct AuxiliaryInput {
   thread: Option<JoinHandle<()>>,
@@ -18,6 +19,7 @@ impl AuxiliaryInput {
 }
 
 static AUX_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
+static LOG_ENVIRONMENT: &str = "AuxiliaryInput";
 
 impl AudioInput for AuxiliaryInput
 {
@@ -39,11 +41,12 @@ impl AudioInput for AuxiliaryInput
       Self: Sized
   {
     // Create a JACK client and register input port
-    let (client, _status) = Client::new(Self::CLIENT_NAME, ClientOptions::default()).unwrap();
     let incremental_id = AUX_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed);
+    let client_name = format!("{}_{}", Self::CLIENT_NAME, incremental_id);
+    let (client, _status) = Client::new(&client_name, ClientOptions::default()).unwrap();
     let port_name = format!("{}_{}", Self::PORT_NAME, incremental_id);
     let in_port = client.register_port(&port_name, AudioIn::default()).unwrap();
-    let aux_id = format!("{}:{}", Self::CLIENT_NAME, port_name);
+    let aux_id = format!("{}:{}", client_name, port_name);
 
     // Create a processing callback that pushes data to ring buffer
     let process = ClosureProcessHandler::new(
@@ -61,9 +64,9 @@ impl AudioInput for AuxiliaryInput
       let active_client = client.activate_async((), process).unwrap();
 
       if let Err(e) = active_client.as_client().connect_ports_by_name(&source, &destination) {
-        println!("Could not connect {} to {}: {:?}", source, destination, e);
+        logger::error_str(LOG_ENVIRONMENT, &format!("Could not connect {} to {}: {:?}", source, destination, e));
       } else {
-        println!("Connected {} -> {}", source, destination)
+        logger::info(LOG_ENVIRONMENT, &format!("Connected to {} to {}", source, destination));
       }
 
       thread::park();

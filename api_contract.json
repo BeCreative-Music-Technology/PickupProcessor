@@ -1,0 +1,35 @@
+{
+  "audio_buses": [
+    {
+      "id": "bus_0",
+      "enabled": true,
+      "effects": [
+        {
+          "effect_type": "gain",
+          "parameters": [
+            {
+              "key": "gain",
+              "value": 32767,
+              "input_control_id": "rotary_0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bus_1",
+      "enabled": true,
+      "effects": []
+    },
+    {
+      "id": "bus_2",
+      "enabled": true,
+      "effects": []
+    },
+    {
+      "id": "bus_3",
+      "enabled": true,
+      "effects": []
+    }
+  ]
+}

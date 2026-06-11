@@ -1,8 +1,7 @@
-use crate::audio_effects::audio_effect::AudioEffect;
-use crate::audio_effects::gain_effect::GainEffect;
-use crate::control_input::{ControlInput, RotaryInput};
-use crate::audio_effects::low_pass_filter_effect::LowPassFilter;
+use std::sync::{Arc, Mutex};
 use crate::routing_director::RoutingDirector;
+use crate::control_input::{ControlInput, RotaryInput};
+use crate::external_connection::{ExternalConnection, VcsgpConnection};
 
 mod audio_effects;
 mod audio_input;
@@ -13,54 +12,38 @@ mod audio_bus;
 mod audio_output;
 mod auxiliary_output;
 mod control_input;
+mod logger;
+pub mod external_connection;
 
+static LOG_ENVIRONMENT: &str = "Main";
 const BUFFER_LENGTH: usize = 1024;
 
 fn main() {
     // Create a new routing director
-    let mut routing_director = RoutingDirector::new("system:capture_1", BUFFER_LENGTH)
-        .expect("Could not initialize routing director");
+    let routing_director_pointer = Arc::new(Mutex::new(RoutingDirector::new("system:capture_1", BUFFER_LENGTH)
+        .expect("Could not initialize routing director")));
+    let routing_director_clone = routing_director_pointer.clone();
+    let mut routing_director = routing_director_pointer.lock().unwrap();
 
-    // Create and enable a new audio bus
-    routing_director
-        .add_audio_bus("system:playback_1")
-        .expect("Could not instantiate new audio bus");
-    let bus_ids: Vec<_> = routing_director
-        .audio_buses()
-        .iter()
-        .map(|bus| bus.id().to_string())
-        .collect();
-    for id in bus_ids {
+    // Instantiate audio buses
+    ["system:playback_1", "system:playback_2", "system:playback_3", "system:playback_4"]
+        .iter().for_each(|output_id| {
         routing_director
-            .enable_audio_bus(&id)
-            .expect("Audio bus could not be enabled");
-    }
+            .add_audio_bus(output_id)
+            .expect("Could not instantiate new audio bus");
+        });
+    drop(routing_director);
 
-    // Create a new control input
-    let volume_dial = RotaryInput::new();
+    let control_inputs: Arc<Mutex<Vec<Box<dyn ControlInput>>>> = Arc::new(Mutex::new(Vec::new()));
+    control_inputs.lock().unwrap().push(Box::new(RotaryInput::new()));
 
-    // Add effects to the audio bus
-    routing_director.audio_buses().iter_mut().for_each(|bus| {
-        // Gain effect
-        bus.add_effect(Box::new(GainEffect::new()));
-        let mut gain_effect = GainEffect::new();
-
-        let gain_observer = gain_effect.get_control_observer("gain")
-            .expect("Could not get observer from effect");
-
-        volume_dial.observable().register(gain_observer);
-
-        bus.add_effect(Box::new(gain_effect));
-        bus.for_effect(0, |effect| effect
-            .set_value("gain", 32767)
-            .expect("Could not set gain value")
-        ).expect("Could not add gain effect");
-
-        // Low pass filter effect
-        bus.add_effect(Box::new(LowPassFilter::new()));
-    });
+    let protocol_connection = VcsgpConnection::new("[::]:31628")
+        .expect("Failed to create VCSGP connection");
+    protocol_connection.start(routing_director_clone, control_inputs);
 
     loop {
+        let mut routing_director = routing_director_pointer.lock().unwrap();
         routing_director.update();
+        drop(routing_director);
     }
 }

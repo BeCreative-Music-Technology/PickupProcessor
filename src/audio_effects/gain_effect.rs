@@ -1,15 +1,18 @@
 ﻿use std::sync::Arc;
-use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::atomic::{AtomicU16, AtomicU8, Ordering};
 use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_effects::effect_helper;
 use crate::audio_effects::effect_input_observer::EffectInputObserver;
 use crate::control_input::{ControlInputObserver};
 use crate::error::Error;
+use crate::logger;
 
 pub struct GainEffect {
   // Wrap the parameter in an Arc<AtomicU16> so it can be shared safely
   gain_value: Arc<AtomicU16>,
 }
+
+static LOG_ENVIRONMENT: &str = "GainEffect";
 
 impl GainEffect {
   const MIN_GAIN_VALUE: f32 = -6.0; // -6db
@@ -25,6 +28,8 @@ impl AudioEffect for GainEffect {
   where
       Self: Sized
   {
+    logger::info(LOG_ENVIRONMENT, "effect created");
+    
     Self {
       gain_value: Arc::new(AtomicU16::new(u16::MAX / 2)),
     }
@@ -66,10 +71,11 @@ impl AudioEffect for GainEffect {
   fn set_value(&mut self, key: &str, value: u16) -> Result<(), Error> {
     if key == "gain" {
       self.gain_value.store(value, Ordering::Relaxed);
-      Ok(())
     } else {
-      Err(Error::new("Unknown parameter"))
+      return Err(Error::new("Unknown parameter"))
     }
+    logger::info(LOG_ENVIRONMENT, &format!("set parameter {} to {}", key, value));
+    Ok(())
   }
 
   /// The effect remains completely passive, simply producing an observer when asked
@@ -84,5 +90,9 @@ impl AudioEffect for GainEffect {
       },
       _ => Err(Error::new("Parameter not found")),
     }
+  }
+
+  fn get_type(&self) -> &str {
+    "gain"
   }
 }

@@ -1,20 +1,30 @@
 use std::thread;
 use std::time::Duration;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, Ordering};
 use rppal::gpio::{Gpio, Level};
+use crate::logger;
 use super::control_input_observer::ControlChange;
 use super::observable_control_input::ObservableControlInput;
 
 pub trait ControlInput: Send + Sync {
-    fn new() -> Self;
+    fn new() -> Self where Self: Sized;
+    fn id(&self) -> &str;
+    fn observable(&self) -> Arc<ObservableControlInput>;
 }
 
 pub struct RotaryInput {
     observable: Arc<ObservableControlInput>,
+    rotary_id: String,
 }
 
+static ROTARY_INPUT_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
+static LOG_ENVIRONMENT_ROTARY: &str ="RotaryInput";
+
 impl ControlInput for RotaryInput {
-    fn new() -> Self {
+    fn new() -> Self where Self: Sized {
+        let rotary_id = format!("rotary_{}", ROTARY_INPUT_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed));
+
         let observable = Arc::new(ObservableControlInput::new());
         let observable_clone = Arc::clone(&observable);
 
@@ -48,7 +58,17 @@ impl ControlInput for RotaryInput {
             }
         });
 
-        Self { observable }
+        logger::info(LOG_ENVIRONMENT_ROTARY, "created");
+
+        Self { observable, rotary_id }
+    }
+
+    fn id(&self) -> &str {
+        self.rotary_id.as_str()
+    }
+
+    fn observable(&self) -> Arc<ObservableControlInput> {
+        self.observable.clone()
     }
 }
 
@@ -56,8 +76,4 @@ impl RotaryInput {
     // Define the BCM GPIO pin numbers
     const GPIO_CLK: u8 = 14;
     const GPIO_DT: u8 = 15;
-
-    pub fn observable(&self) -> Arc<ObservableControlInput> {
-        self.observable.clone()
-    }
 }

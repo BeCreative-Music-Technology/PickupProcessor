@@ -7,6 +7,7 @@ use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_output::AudioOutput;
 use crate::auxiliary_output::AuxiliaryOutput;
 use crate::error::Error;
+use crate::logger;
 
 pub struct AudioBus {
   enabled: Arc<AtomicBool>,
@@ -18,6 +19,7 @@ pub struct AudioBus {
 }
 
 static BUS_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
+static LOG_ENVIRONMENT: &str = "AudioBus";
 
 impl AudioBus {
   ///
@@ -68,7 +70,7 @@ impl AudioBus {
         Ok(incoming_audio) => incoming_audio,
         Err(_) => continue,
       };
-      
+
       // Clone, empty and process data from effect buffer
       let mut processed_audio = {
         let mut effect_buffer = thread_effect_buffer.lock().unwrap();
@@ -91,6 +93,8 @@ impl AudioBus {
       _ = output_producer.push_partial_slice(&processed_audio);
     });
 
+    logger::info(LOG_ENVIRONMENT, &format!("{} created", &bus_id));
+
     Ok(Self {
       enabled: atomic_enabled,
       audio_output: Box::new(audio_output),
@@ -105,7 +109,15 @@ impl AudioBus {
   /// Adds new effect to the effect chain
   ///
   pub fn add_effect(&mut self, effect: Box<dyn AudioEffect>) {
+    logger::info(LOG_ENVIRONMENT, &format!("{} added to {}", effect.get_type(), self.bus_id));
     self.effects.lock().unwrap().push(effect);
+  }
+
+  ///
+  /// Retrieves a copy of all effects from the effect chain
+  ///
+  pub fn effects(&self) -> Arc<Mutex<Vec<Box<dyn AudioEffect>>>> {
+    self.effects.clone()
   }
 
   ///
@@ -113,6 +125,14 @@ impl AudioBus {
   ///
   pub fn remove_effect(&mut self, index: usize) {
     self.effects.lock().unwrap().remove(index);
+  }
+
+  ///
+  /// Removes all effects from the effect chain
+  ///
+  pub fn clear_effects(&mut self) {
+    logger::info(LOG_ENVIRONMENT, &format!("cleared effect chain for {}", self.bus_id));
+    self.effects.lock().unwrap().clear();
   }
 
   ///
@@ -138,6 +158,7 @@ impl AudioBus {
   /// Enables the `AudioBus` so it starts processing the incoming data.
   ///
   pub fn enable(&mut self) {
+    logger::info(LOG_ENVIRONMENT, &format!("{} enabled", &self.bus_id));
     self.enabled.store(true, Ordering::Relaxed);
   }
 
@@ -145,6 +166,7 @@ impl AudioBus {
   /// Disables the `AudioBus` so it stops processing the incoming data.
   ///
   pub fn disable(&mut self) {
+    logger::info(LOG_ENVIRONMENT, &format!("{} disabled", &self.bus_id));
     self.enabled.store(false, Ordering::Relaxed);
   }
 
