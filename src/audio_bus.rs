@@ -70,7 +70,7 @@ impl AudioBus {
         Ok(incoming_audio) => incoming_audio,
         Err(_) => continue,
       };
-      
+
       // Clone, empty and process data from effect buffer
       let mut processed_audio = {
         let mut effect_buffer = thread_effect_buffer.lock().unwrap();
@@ -158,7 +158,7 @@ impl AudioBus {
   /// Enables the `AudioBus` so it starts processing the incoming data.
   ///
   pub fn enable(&mut self) {
-    logger::info(LOG_ENVIRONMENT, &format!("{} enabled", &BUS_INCREMENTAL_ID.load(Ordering::Relaxed)));
+    logger::info(LOG_ENVIRONMENT, &format!("{} enabled", &self.bus_id));
     self.enabled.store(true, Ordering::Relaxed);
   }
 
@@ -166,7 +166,7 @@ impl AudioBus {
   /// Disables the `AudioBus` so it stops processing the incoming data.
   ///
   pub fn disable(&mut self) {
-    logger::info(LOG_ENVIRONMENT, &format!("{} disabled", &BUS_INCREMENTAL_ID.load(Ordering::Relaxed)));
+    logger::info(LOG_ENVIRONMENT, &format!("{} disabled", &self.bus_id));
     self.enabled.store(false, Ordering::Relaxed);
   }
 

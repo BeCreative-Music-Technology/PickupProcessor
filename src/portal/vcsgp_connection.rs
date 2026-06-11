@@ -37,7 +37,7 @@ impl VcsgpConnection {
 
   fn update_bus(
     audio_bus: &mut AudioBus,
-    dto: &AudioBusDto, 
+    dto: &AudioBusDto,
     control_inputs: &Arc<Mutex<Vec<Box<dyn ControlInput>>>>
   ) {
     if dto.enabled { audio_bus.enable() }
@@ -65,7 +65,7 @@ impl VcsgpConnection {
         };
         let ci_guard = control_inputs.lock().unwrap();
         let control_input = match ci_guard
-          .iter().find(|ci| ci.id() == parameter_dto.input_control_id) {
+            .iter().find(|ci| ci.id() == parameter_dto.input_control_id) {
           Some(ci) => ci,
           None => {
             logger::error_str(LOG_ENVIRONMENT, &format!("control input with id [{}] not found", parameter_dto.input_control_id));
@@ -106,9 +106,13 @@ impl ExternalConnection for VcsgpConnection {
     control_inputs: Arc<Mutex<Vec<Box<dyn ControlInput>>>>
   ) {
     self.listen(Box::new(move |data| {
+      let data = data.to_owned();
+      let thread_routing_director = routing_director.clone();
+      let control_inputs = Arc::clone(&control_inputs);
+
       thread::spawn(move || {
         // Convert incoming data to JSON
-        let dto: Dto = match serde_json::from_str(data) {
+        let dto: Dto = match serde_json::from_str(&*data) {
           Ok(dto) => dto,
           Err(e) => {
             logger::error_str(LOG_ENVIRONMENT, &e.to_string());
@@ -127,9 +131,9 @@ impl ExternalConnection for VcsgpConnection {
 
         // Add audio effects
         let audio_bus_dto = dto.audio_buses;
-        routing_director.lock().unwrap()
-          .audio_buses()
-          .iter_mut().for_each(|bus| {
+        thread_routing_director.lock().unwrap()
+            .audio_buses()
+            .iter_mut().for_each(|bus| {
           audio_bus_dto.iter().for_each(|dto| {
             if bus.id() == dto.id {
               Self::update_bus(bus, dto, &control_inputs);
