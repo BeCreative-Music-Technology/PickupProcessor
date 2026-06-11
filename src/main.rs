@@ -1,8 +1,7 @@
 use std::sync::{Arc, Mutex};
-use external_connection::ExternalConnection;
 use crate::routing_director::RoutingDirector;
-use vcsgp_connection::VcsgpConnection;
 use crate::control_input::{ControlInput, RotaryInput};
+use crate::external_connection::{ExternalConnection, VcsgpConnection};
 
 mod audio_effects;
 mod audio_input;
@@ -15,7 +14,6 @@ mod auxiliary_output;
 mod control_input;
 mod logger;
 pub mod external_connection;
-pub mod vcsgp_connection;
 
 static LOG_ENVIRONMENT: &str = "Main";
 const BUFFER_LENGTH: usize = 1024;

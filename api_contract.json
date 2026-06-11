@@ -15,6 +15,21 @@
           ]
         }
       ]
+    },
+    {
+      "id": "bus_1",
+      "enabled": true,
+      "effects": []
+    },
+    {
+      "id": "bus_2",
+      "enabled": true,
+      "effects": []
+    },
+    {
+      "id": "bus_3",
+      "enabled": true,
+      "effects": []
     }
   ]
 }
