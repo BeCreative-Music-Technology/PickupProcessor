@@ -11,7 +11,7 @@ use crate::audio_effects::reverb_effect::ReverbEffect;
 use crate::control_input::{ControlInput, RotaryInput};
 use crate::error::Error;
 use crate::logger;
-use crate::portal::external_connection::ExternalConnection;
+use crate::external_connection::ExternalConnection;
 use crate::routing_director::RoutingDirector;
 
 static LOG_ENVIRONMENT: &str = "VcsgpConnection";
@@ -121,17 +121,15 @@ impl ExternalConnection for VcsgpConnection {
             return;
           }
         };
-        
+
         // Add audio effects
-        let audio_bus_dto = dto.audio_buses;
-        thread_routing_director.lock().unwrap()
-            .audio_buses()
-            .iter_mut().for_each(|bus| {
-          audio_bus_dto.iter().for_each(|dto| {
-            if bus.id() == dto.id {
-              Self::update_bus(bus, dto, &control_inputs);
-            }
-          });
+        let mut audio_bus_dto = dto.audio_buses;
+        let mut rd_guard = thread_routing_director.lock().unwrap();
+        audio_bus_dto.iter().for_each(|dto| {
+          match rd_guard.audio_buses().iter_mut().find(|bus| bus.id() == dto.id) {
+            None => logger::error_str(LOG_ENVIRONMENT, &format!("{} does not exist", dto.id)),
+            Some(bus) => Self::update_bus(bus, dto, &control_inputs),
+          }
         });
       }));
     });
