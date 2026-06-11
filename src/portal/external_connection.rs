@@ -6,7 +6,7 @@ use crate::routing_director::RoutingDirector;
 pub trait ExternalConnection {
   fn new(connection_str: &str) -> Result<Self, Error> where Self: Sized;
   fn start(
-    &mut self,
+    self,
     routing_director: Arc<Mutex<RoutingDirector>>,
     control_inputs: Arc<Mutex<Vec<Box<dyn ControlInput>>>>
   );

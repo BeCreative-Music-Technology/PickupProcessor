@@ -1,17 +1,10 @@
 {
-  "control_inputs": [
-    {
-      "id": "rotary_0",
-      "control_type": "rotary"
-    }
-  ],
   "audio_buses": [
     {
       "id": "bus_0",
       "enabled": true,
       "effects": [
         {
-          "id": "gain_0",
           "effect_type": "gain",
           "parameters": [
             {

@@ -1,4 +1,4 @@
-﻿use std::io::Read;
+﻿use std::io::{BufRead, BufReader, Read};
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -22,15 +22,13 @@ pub struct VcsgpConnection {
 
 impl VcsgpConnection {
   fn listen(&self, callback: Box<dyn Fn(&str)>) {
-    for stream in self.listener.incoming() {
-      let Ok(mut stream) = stream else {
-        continue;
-      };
+    logger::info(LOG_ENVIRONMENT, "listening to VCSGP connection");
 
-      let mut buffer = Vec::new();
-      if stream.read_to_end(&mut buffer).is_ok() && !buffer.is_empty() {
-        let message = String::from_utf8_lossy(&buffer);
-        callback(&message);
+    for stream in self.listener.incoming().map(|s| s.unwrap()) {
+      let reader = BufReader::new(stream);
+
+      for line in reader.lines().map(|l| l.unwrap()) {
+        callback(&line);
       }
     }
   }
@@ -94,23 +92,27 @@ impl ExternalConnection for VcsgpConnection {
   {
     let listener = match TcpListener::bind(connection_str) {
       Ok(listener) => listener,
-      Err(_) => return Err(Error::new("Could not create TCP socket"))
+      Err(_) => return Err(Error::new("could not create TCP socket"))
     };
+
+    logger::info(LOG_ENVIRONMENT, "VCSGP listener created");
 
     Ok(Self { listener })
   }
 
   fn start(
-    &mut self,
+    self,
     routing_director: Arc<Mutex<RoutingDirector>>,
     control_inputs: Arc<Mutex<Vec<Box<dyn ControlInput>>>>
   ) {
-    self.listen(Box::new(move |data| {
-      let data = data.to_owned();
-      let thread_routing_director = routing_director.clone();
-      let control_inputs = Arc::clone(&control_inputs);
+    logger::info(LOG_ENVIRONMENT, "starting to listen to VCSGP");
 
-      thread::spawn(move || {
+    thread::spawn(move || {
+      self.listen(Box::new(move |data| {
+        let data = data.to_owned();
+        let thread_routing_director = routing_director.clone();
+        let control_inputs = Arc::clone(&control_inputs);
+
         // Convert incoming data to JSON
         let dto: Dto = match serde_json::from_str(&*data) {
           Ok(dto) => dto,
@@ -119,16 +121,7 @@ impl ExternalConnection for VcsgpConnection {
             return;
           }
         };
-
-        // Add control inputs
-        dto.control_inputs.iter().for_each(|control_input_dto| {
-          match control_input_dto.control_type {
-            ControlType::Rotary => {
-              control_inputs.lock().unwrap().push(Box::new(RotaryInput::new()));
-            }
-          }
-        });
-
+        
         // Add audio effects
         let audio_bus_dto = dto.audio_buses;
         thread_routing_director.lock().unwrap()
@@ -140,26 +133,14 @@ impl ExternalConnection for VcsgpConnection {
             }
           });
         });
-      });
-    }));
+      }));
+    });
   }
 }
 
 #[derive(Serialize, Deserialize)]
 struct Dto {
-  control_inputs: Vec<ControlInputDto>,
   audio_buses: Vec<AudioBusDto>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct ControlInputDto {
-  id: String,
-  control_type: ControlType,
-}
-
-#[derive(Serialize, Deserialize)]
-enum ControlType {
-  Rotary
 }
 
 #[derive(Serialize, Deserialize)]
@@ -171,7 +152,6 @@ struct AudioBusDto {
 
 #[derive(Serialize, Deserialize)]
 struct EffectDto {
-  id: String,
   effect_type: EffectType,
   parameters: Vec<EffectParameterDto>,
 }
@@ -184,6 +164,7 @@ struct EffectParameterDto {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 enum EffectType {
   Gain,
   LowPassFilter,

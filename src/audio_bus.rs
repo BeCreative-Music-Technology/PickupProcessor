@@ -109,7 +109,7 @@ impl AudioBus {
   /// Adds new effect to the effect chain
   ///
   pub fn add_effect(&mut self, effect: Box<dyn AudioEffect>) {
-    logger::info(LOG_ENVIRONMENT, &format!("{} added to {}", effect.id(), self.bus_id));
+    logger::info(LOG_ENVIRONMENT, &format!("{} added to {}", effect.get_type(), self.bus_id));
     self.effects.lock().unwrap().push(effect);
   }
 

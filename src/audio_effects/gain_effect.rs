@@ -10,10 +10,8 @@ use crate::logger;
 pub struct GainEffect {
   // Wrap the parameter in an Arc<AtomicU16> so it can be shared safely
   gain_value: Arc<AtomicU16>,
-  gain_id: String,
 }
 
-static GAIN_EFFECT_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
 static LOG_ENVIRONMENT: &str = "GainEffect";
 
 impl GainEffect {
@@ -30,13 +28,10 @@ impl AudioEffect for GainEffect {
   where
       Self: Sized
   {
-    let gain_id = format!("gain_{}", GAIN_EFFECT_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed));
-
-    logger::info(LOG_ENVIRONMENT, &format!("{} created", gain_id));
+    logger::info(LOG_ENVIRONMENT, "effect created");
     
     Self {
       gain_value: Arc::new(AtomicU16::new(u16::MAX / 2)),
-      gain_id,
     }
   }
 
@@ -97,7 +92,7 @@ impl AudioEffect for GainEffect {
     }
   }
 
-  fn id(&self) -> &str {
-    self.gain_id.as_str()
+  fn get_type(&self) -> &str {
+    "gain"
   }
 }

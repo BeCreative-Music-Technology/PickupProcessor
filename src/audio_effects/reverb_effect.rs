@@ -15,10 +15,8 @@ pub struct ReverbEffect
   room_size: Arc<AtomicU16>, // meters
   reverb_decay: Arc<AtomicU16>, // seconds
   dampening: Arc<AtomicU16>, // 0..1
-  reverb_id: String,
 }
 
-static REVERB_EFFECT_INCREMENTAL_ID: AtomicU16 = AtomicU16::new(0);
 static LOG_ENVIRONMENT: &str = "ReverbEffect";
 
 impl AudioEffect for ReverbEffect{
@@ -26,19 +24,17 @@ impl AudioEffect for ReverbEffect{
   where
       Self: Sized
   {
-    let reverb_id = format!("reverb_{}", REVERB_EFFECT_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed));
     
     let room_size = u16::MAX / 2; // 20 meters
     let reverb_decay = 6524; // 2 seconds
     let dampening = u16::MAX / 2; // 0.5
 
-    logger::info(LOG_ENVIRONMENT, &format!("{} created", reverb_id));
+    logger::info(LOG_ENVIRONMENT, "effect created");
 
     Self {
       room_size: Arc::new(AtomicU16::new(room_size)),
       reverb_decay: Arc::new(AtomicU16::new(reverb_decay)),
       dampening: Arc::new(AtomicU16::new(dampening)),
-      reverb_id,
     }
   }
 
@@ -111,7 +107,7 @@ impl AudioEffect for ReverbEffect{
     }
   }
 
-  fn id(&self) -> &str {
-    self.reverb_id.as_str()
+  fn get_type(&self) -> &str {
+    "reverb"
   }
 }

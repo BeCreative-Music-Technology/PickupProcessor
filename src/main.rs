@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 use portal::external_connection::ExternalConnection;
 use crate::routing_director::RoutingDirector;
 use portal::vcsgp_connection::VcsgpConnection;
+use crate::control_input::{ControlInput, RotaryInput};
 
 mod audio_effects;
 mod audio_input;
@@ -15,6 +16,7 @@ mod control_input;
 mod portal;
 mod logger;
 
+static LOG_ENVIRONMENT: &str = "Main";
 const BUFFER_LENGTH: usize = 1024;
 
 fn main() {
@@ -31,28 +33,18 @@ fn main() {
             .add_audio_bus(output_id)
             .expect("Could not instantiate new audio bus");
         });
+    drop(routing_director);
 
-    // Enable audio buses
-    let bus_ids: Vec<_> = routing_director
-        .audio_buses()
-        .iter()
-        .map(|bus| bus.id().to_string())
-        .collect();
-    for id in bus_ids {
-        routing_director
-            .enable_audio_bus(&id)
-            .expect("Audio bus could not be enabled");
-    }
-    // TODO: Check if mutex lock is dropped
+    let control_inputs: Arc<Mutex<Vec<Box<dyn ControlInput>>>> = Arc::new(Mutex::new(Vec::new()));
+    control_inputs.lock().unwrap().push(Box::new(RotaryInput::new()));
 
-    let control_inputs = Arc::new(Mutex::new(Vec::new()));
-
-    let mut protocol_connection = VcsgpConnection::new("127.0.0.1:31628")
+    let protocol_connection = VcsgpConnection::new("[::]:31628")
         .expect("Failed to create VCSGP connection");
     protocol_connection.start(routing_director_clone, control_inputs);
 
     loop {
-        logger::log("test", "test");
+        let mut routing_director = routing_director_pointer.lock().unwrap();
         routing_director.update();
+        drop(routing_director);
     }
 }
