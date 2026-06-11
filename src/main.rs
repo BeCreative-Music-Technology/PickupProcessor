@@ -13,7 +13,6 @@ mod audio_bus;
 mod audio_output;
 mod auxiliary_output;
 mod control_input;
-mod portal;
 mod logger;
 pub mod external_connection;
 pub mod vcsgp_connection;
