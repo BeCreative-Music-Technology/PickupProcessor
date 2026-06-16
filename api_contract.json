@@ -6,6 +6,7 @@
       "effects": [
         {
           "effect_type": "gain",
+          "mix": 65535,
           "parameters": [
             {
               "key": "gain",

@@ -5,3 +5,7 @@
   let normalized = (value_f32 - range_min_f32) / (range_max_f32 - range_min_f32);
   normalized * (value_max - value_min) + value_min
 }
+
+pub fn mix(previous_value: f32, new_value: f32, mix_percentage: f32) -> f32 {
+  previous_value * (1.0 - mix_percentage) + new_value * mix_percentage
+}
