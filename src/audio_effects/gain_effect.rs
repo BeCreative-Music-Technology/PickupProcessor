@@ -1,5 +1,5 @@
 ﻿use std::sync::Arc;
-use std::sync::atomic::{AtomicU16, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU16, Ordering};
 use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_effects::effect_helper;
 use crate::audio_effects::effect_input_observer::EffectInputObserver;
@@ -8,7 +8,7 @@ use crate::error::Error;
 use crate::logger;
 
 pub struct GainEffect {
-  // Wrap the parameter in an Arc<AtomicU16> so it can be shared safely
+  mix: Arc<AtomicU16>,
   gain_value: Arc<AtomicU16>,
 }
 
@@ -24,13 +24,14 @@ impl GainEffect {
 }
 
 impl AudioEffect for GainEffect {
-  fn new() -> Self
+  fn new(mix: u16) -> Self
   where
       Self: Sized
   {
     logger::info(LOG_ENVIRONMENT, "effect created");
     
     Self {
+      mix: Arc::new(AtomicU16::new(mix)),
       gain_value: Arc::new(AtomicU16::new(u16::MAX / 2)),
     }
   }
@@ -43,7 +44,6 @@ impl AudioEffect for GainEffect {
   /// `chunk` takes a `Vec<f32>` which contains the data to be processed by the gain effect.
   ///
   fn process_chunk(&mut self, chunk: Vec<f32>) -> Box<[f32]> {
-    // Safely pull the current value exactly as it is right now
     let current_gain = self.gain_value.load(Ordering::Relaxed);
 
     let u16_half = u16::MAX / 2;
@@ -55,8 +55,17 @@ impl AudioEffect for GainEffect {
       1.0
     };
 
+    let mix = effect_helper::map(
+      self.mix.load(Ordering::Relaxed),
+      u16::MIN,
+      u16::MAX,
+      0.0,
+      1.0
+    );
+
     chunk.iter().map(|sample| {
-      sample * Self::db_to_gain(gain_db)
+      let processed = sample * Self::db_to_gain(gain_db);
+      effect_helper::mix(*sample, processed, mix)
     }).collect()
   }
 
@@ -69,27 +78,25 @@ impl AudioEffect for GainEffect {
   /// `value` takes an 'u16' with the new value.
   ///
   fn set_value(&mut self, key: &str, value: u16) -> Result<(), Error> {
-    if key == "gain" {
-      self.gain_value.store(value, Ordering::Relaxed);
-    } else {
-      return Err(Error::new("Unknown parameter"))
-    }
+    match key {
+      "mix" => self.mix.store(value, Ordering::Relaxed),
+      "gain" => self.gain_value.store(value, Ordering::Relaxed),
+      _ => return Err(Error::new("Unknown parameter"))
+    };
     logger::info(LOG_ENVIRONMENT, &format!("set parameter {} to {}", key, value));
     Ok(())
   }
 
   /// The effect remains completely passive, simply producing an observer when asked
   fn get_control_observer(&mut self, key: &str) -> Result<Arc<dyn ControlInputObserver>, Error> {
-    match key {
-      "gain" => {
-        // Create an observer holding a cloned pointer to our atomic value
-        let observer = Arc::new(EffectInputObserver {
-          value_storage: Arc::clone(&self.gain_value),
-        });
-        Ok(observer)
-      },
-      _ => Err(Error::new("Parameter not found")),
-    }
+    let value = match key {
+      "mix" => &self.mix,
+      "gain" => &self.gain_value,
+      _ => return Err(Error::new("Parameter not found")),
+    };
+    Ok(Arc::new(EffectInputObserver {
+      value_storage: Arc::clone(value)
+    }))
   }
 
   fn get_type(&self) -> &str {
