@@ -5,6 +5,7 @@ use std::thread;
 use serde::{Deserialize, Serialize};
 use crate::audio_bus::AudioBus;
 use crate::audio_effects::audio_effect::AudioEffect;
+use crate::audio_effects::delay_effect::DelayEffect;
 use crate::audio_effects::gain_effect::GainEffect;
 use crate::audio_effects::low_pass_filter_effect::LowPassFilterEffect;
 use crate::audio_effects::reverb_effect::ReverbEffect;
@@ -53,9 +54,10 @@ impl VcsgpConnection {
     dto.effects.iter().for_each(|effect_dto| {
       // Create new effect instance
       let mut effect: Box<dyn AudioEffect> = match effect_dto.effect_type {
-        EffectType::Gain => Box::new(GainEffect::new()),
-        EffectType::LowPassFilter => Box::new(LowPassFilterEffect::new()),
-        EffectType::Reverb => Box::new(ReverbEffect::new()),
+        EffectType::Gain => Box::new(GainEffect::new(effect_dto.mix)),
+        EffectType::LowPassFilter => Box::new(LowPassFilterEffect::new(effect_dto.mix)),
+        EffectType::Reverb => Box::new(ReverbEffect::new(effect_dto.mix)),
+        EffectType::Delay => Box::new(DelayEffect::new(effect_dto.mix)),
       };
 
       // Set effect parameters and attach control inputs
@@ -159,6 +161,7 @@ struct AudioBusDto {
 #[derive(Serialize, Deserialize)]
 struct EffectDto {
   effect_type: EffectType,
+  mix: u16,
   parameters: Vec<EffectParameterDto>,
 }
 
@@ -175,4 +178,5 @@ enum EffectType {
   Gain,
   LowPassFilter,
   Reverb,
+  Delay,
 }
