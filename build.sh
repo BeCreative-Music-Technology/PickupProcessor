@@ -1,4 +1,6 @@
-﻿# Pull latest changes from main
+﻿#!/bin/bash
+
+# Pull latest changes from main
 git checkout main
 git pull
 echo "Fetched latest changes from repository"
