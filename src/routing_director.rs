@@ -90,7 +90,7 @@ impl RoutingDirector {
   ///
   pub fn add_audio_bus(&mut self, audio_output_name: &str) -> Result<(), Error> {
     let (bus_producer, bus_consumer) = RingBuffer::<f32>::new(2048);
-    let new_bus = match AudioBus::new(bus_consumer, audio_output_name, false, self.buffer_length) {
+    let new_bus = match AudioBus::new(bus_consumer, audio_output_name, true, self.buffer_length) {
       Ok(new_bus) => new_bus,
       Err(e) => return Err(e),
     };
