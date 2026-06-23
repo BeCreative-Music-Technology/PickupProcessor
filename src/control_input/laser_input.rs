@@ -8,6 +8,7 @@ use crate::logger;
 struct LaserInput {
   observable: Arc<ObservableControlInput>,
   laser_id: String,
+  
 }
 
 static LASER_INPUT_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
@@ -77,13 +78,19 @@ impl LaserInput {
 
     loop {
       if read_light_sensor(0) == Level::Low {
-
+        set_laser_0_brightness(90);
+      } else {
+        set_laser_0_brightness(100);
       }
       if read_light_sensor(1) == Level::Low {
-
+        set_laser_1_brightness(90);
+      } else {
+        set_laser_1_brightness(100);
       }
       if read_light_sensor(2) == Level::Low {
-
+        set_laser_2_brightness(90);
+      } else {
+        set_laser_2_brightness(100);
       }
     }
   }
@@ -112,15 +119,23 @@ impl LaserInput {
   }
 
   fn set_laser_brightness_factory(direction_pin: &mut OutputPin, mut increment_pin: OutputPin) -> Box<dyn FnMut(u8)> {
-    let mut step_count = 0_u8;
+    let mut step_count = 100_u8;
 
-    // TODO: Add reset
+    // Reset laser potentiometer to zero resistance (full brightness)
+    for _ in 101 {
+      Self::set_wiper_direction(direction_pin, Direction::Down);
+
+      increment_pin.set_low();
+      input_helper::sleep_micros(5);
+      increment_pin.set_high();
+      input_helper::sleep_micros(5);
+    }
 
     Box::new(move |brightness| {
       while step_count != brightness {
         if step_count < brightness {
           step_count += 1;
-          Self::set_laser_direction(direction_pin, Direction::Up);
+          Self::set_wiper_direction(direction_pin, Direction::Up);
 
           increment_pin.set_low();
           input_helper::sleep_micros(5);
@@ -129,7 +144,7 @@ impl LaserInput {
         }
         else {
           step_count -= 1;
-          Self::set_laser_direction(direction_pin, Direction::Down);
+          Self::set_wiper_direction(direction_pin, Direction::Down);
 
           increment_pin.set_low();
           input_helper::sleep_micros(5);
@@ -140,7 +155,7 @@ impl LaserInput {
     })
   }
 
-  fn set_laser_direction(direction_pin: &mut OutputPin, direction: Direction) {
+  fn set_wiper_direction(direction_pin: &mut OutputPin, direction: Direction) {
     if direction_pin.is_set_high() && direction == Direction::Down {
       direction_pin.set_low();
       input_helper::sleep_micros(5);
