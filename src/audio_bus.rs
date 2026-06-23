@@ -15,7 +15,7 @@ pub struct AudioBus {
   effects: Arc<Mutex<Vec<Box<dyn AudioEffect>>>>,
   effect_buffer: Arc<Mutex<Vec<f32>>>,
   bus_id: String,
-  thread: Option<JoinHandle<()>>
+  thread: JoinHandle<()>,
 }
 
 static BUS_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
@@ -65,32 +65,38 @@ impl AudioBus {
     let thread_enabled = Arc::clone(&atomic_enabled);
 
     // Create a thread for processing the incoming audio
-    let handle = thread::spawn(move || while thread_enabled.load(Ordering::Relaxed) {
-      let incoming_audio = match consumer.pop() {
-        Ok(incoming_audio) => incoming_audio,
-        Err(_) => continue,
-      };
+    let handle = thread::spawn(move || {
+      loop {
+        if !thread_enabled.load(Ordering::Relaxed) {
+          thread::park();
+        };
 
-      // Clone, empty and process data from effect buffer
-      let mut processed_audio = {
-        let mut effect_buffer = thread_effect_buffer.lock().unwrap();
-        effect_buffer.push(incoming_audio);
+        let incoming_audio = match consumer.pop() {
+          Ok(incoming_audio) => incoming_audio,
+          Err(_) => continue,
+        };
 
-        if effect_buffer.len() < buffer_length {
-          continue;
-        }
+        // Clone, empty and process data from effect buffer
+        let mut processed_audio = {
+          let mut effect_buffer = thread_effect_buffer.lock().unwrap();
+          effect_buffer.push(incoming_audio);
 
-        let data = effect_buffer.clone();
-        effect_buffer.clear();
-        data
-      };
-      for effect in thread_effects.lock().unwrap().iter_mut() {
-        processed_audio = effect
+          if effect_buffer.len() < buffer_length {
+            continue;
+          }
+
+          let data = effect_buffer.clone();
+          effect_buffer.clear();
+          data
+        };
+        for effect in thread_effects.lock().unwrap().iter_mut() {
+          processed_audio = effect
             .process_chunk(processed_audio)
             .into_vec();
-      }
+        }
 
-      _ = output_producer.push_partial_slice(&processed_audio);
+        _ = output_producer.push_partial_slice(&processed_audio);
+      }
     });
 
     logger::info(LOG_ENVIRONMENT, &format!("{} created", &bus_id));
@@ -101,7 +107,7 @@ impl AudioBus {
       effects,
       effect_buffer,
       bus_id,
-      thread: Some(handle),
+      thread: handle,
     })
   }
 
@@ -159,6 +165,7 @@ impl AudioBus {
   ///
   pub fn enable(&mut self) {
     logger::info(LOG_ENVIRONMENT, &format!("{} enabled", &self.bus_id));
+    self.thread.thread().unpark();
     self.enabled.store(true, Ordering::Relaxed);
   }
 
