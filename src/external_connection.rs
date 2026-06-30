@@ -54,10 +54,46 @@ impl VcsgpConnection {
     dto.effects.iter().for_each(|effect_dto| {
       // Create new effect instance
       let mut effect: Box<dyn AudioEffect> = match effect_dto.effect_type {
-        EffectType::Gain => Box::new(GainEffect::new(effect_dto.mix)),
-        EffectType::LowPassFilter => Box::new(LowPassFilterEffect::new(effect_dto.mix)),
-        EffectType::Reverb => Box::new(ReverbEffect::new(effect_dto.mix)),
-        EffectType::Delay => Box::new(DelayEffect::new(effect_dto.mix)),
+        EffectType::Gain => {
+          let gain = match Self::get_parameter("gain", effect_dto.parameters) {
+            Ok(gain) => gain,
+            Err(e) => { logger::error(LOG_ENVIRONMENT, e); return },
+          };
+          Box::new(GainEffect::new(effect_dto.mix, gain))
+        }
+        EffectType::LowPassFilter => {
+          let frequency = match Self::get_parameter("frequency", effect_dto.parameters) {
+            Ok(frequency) => frequency,
+            Err(e) => { logger::error(LOG_ENVIRONMENT, e); return },
+          };
+          let q_factor = match Self::get_parameter("q_factor", effect_dto.parameters) {
+            Ok(q_factor) => q_factor,
+            Err(e) => { logger::error(LOG_ENVIRONMENT, e); return },
+          };
+          Box::new(LowPassFilterEffect::new(effect_dto.mix, frequency, q_factor)) 
+        },
+        EffectType::Reverb => {
+          let room_size = match Self::get_parameter("room_size", effect_dto.parameters) {
+            Ok(room_size) => room_size,
+            Err(e) => { logger::error(LOG_ENVIRONMENT, e); return },
+          };
+          let reverb_decay = match Self::get_parameter("reverb_decay", effect_dto.parameters) {
+            Ok(reverb_decay) => reverb_decay,
+            Err(e) => { logger::error(LOG_ENVIRONMENT, e); return },
+          };
+          let dampening = match Self::get_parameter("dampening", effect_dto.parameters) {
+            Ok(dampening) => dampening,
+            Err(e) => { logger::error(LOG_ENVIRONMENT, e); return },
+          };
+          Box::new(ReverbEffect::new(effect_dto.mix, room_size, reverb_decay, dampening))
+        },
+        EffectType::Delay => {
+          let delay = match Self::get_parameter("delay", effect_dto.parameters) {
+            Ok(delay) => delay,
+            Err(e) => { logger::error(LOG_ENVIRONMENT, e); return },
+          };
+          Box::new(DelayEffect::new(effect_dto.mix, delay)) 
+        },
       };
 
       // Set effect parameters and attach control inputs
@@ -86,6 +122,10 @@ impl VcsgpConnection {
 
       audio_bus.add_effect(effect);
     });
+  }
+
+  fn get_parameter(key: &str, parameter_list: Vec<EffectParameterDto>) -> Result<u16, Error> {
+
   }
 }
 

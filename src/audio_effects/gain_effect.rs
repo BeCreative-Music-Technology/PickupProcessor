@@ -15,27 +15,35 @@ pub struct GainEffect {
 static LOG_ENVIRONMENT: &str = "GainEffect";
 
 impl GainEffect {
-  const MIN_GAIN_VALUE: f32 = -6.0; // -6db
-  const MAX_GAIN_VALUE: f32 = 18.0; // +18db
+  pub fn new(mix: u16, gain: u16) -> Self
+  where
+    Self: Sized
+  {
+    logger::info(LOG_ENVIRONMENT, "effect created");
+
+    Self {
+      mix: Arc::new(AtomicU16::new(mix)),
+      gain_value: Arc::new(AtomicU16::new(gain)), // u16::MAX / 2
+    }
+  }
 
   fn db_to_gain(db: f32) -> f32 {
     10.0_f32.powf(db / 20.0)
   }
+
+  fn parse_gain(gain: u16) -> f32 {
+    let u16_half = u16::MAX / 2;
+    if gain < u16_half {
+      effect_helper::map(gain, u16::MIN, u16_half, -6.0, 0.0) // -6 dB -> 0 dB
+    } else if gain > u16_half {
+      effect_helper::map(gain, u16_half, u16::MAX, 0.0, 18.0) // 0 dB -> 18 dB
+    } else {
+      1.0
+    }
+  }
 }
 
 impl AudioEffect for GainEffect {
-  fn new(mix: u16) -> Self
-  where
-      Self: Sized
-  {
-    logger::info(LOG_ENVIRONMENT, "effect created");
-    
-    Self {
-      mix: Arc::new(AtomicU16::new(mix)),
-      gain_value: Arc::new(AtomicU16::new(u16::MAX / 2)),
-    }
-  }
-
   ///
   /// Processes the chunk of data given to the method and applies a gain.
   /// The gain is done by multiplying the signal with a set factor.
@@ -44,16 +52,8 @@ impl AudioEffect for GainEffect {
   /// `chunk` takes a `Vec<f32>` which contains the data to be processed by the gain effect.
   ///
   fn process_chunk(&mut self, chunk: Vec<f32>) -> Box<[f32]> {
-    let current_gain = self.gain_value.load(Ordering::Relaxed);
-
-    let u16_half = u16::MAX / 2;
-    let gain_db: f32 = if current_gain < u16_half {
-      effect_helper::map(current_gain, u16::MIN, u16_half, Self::MIN_GAIN_VALUE, 1.0)
-    } else if current_gain > u16_half {
-      effect_helper::map(current_gain, u16_half, u16::MAX, 1.0, Self::MAX_GAIN_VALUE)
-    } else {
-      1.0
-    };
+    let gain = self.gain_value.load(Ordering::Relaxed);
+    let gain_db = Self::parse_gain(gain);
 
     let mix = effect_helper::map(
       self.mix.load(Ordering::Relaxed),

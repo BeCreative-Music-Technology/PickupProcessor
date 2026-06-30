@@ -12,24 +12,32 @@ static LOG_ENVIRONMENT: &str = "LowPassFilterEffect";
 
 pub struct DelayEffect {
   mix: Arc<AtomicU16>,
-  frequency: Arc<AtomicU16>,
   delay: An<Delay>,
 }
 
-impl AudioEffect for DelayEffect {
-  fn new(mix: u16) -> Self
+impl DelayEffect {
+  pub fn new(mix: u16, delay_value: u16) -> Self
   where
     Self: Sized
   {
     logger::info(LOG_ENVIRONMENT, "effect created");
-    
+
+    let delay_value = effect_helper::map(
+      delay_value, // AtomicU16::new(16137) // 0.5 seconds
+      u16::MIN,
+      u16::MAX,
+      0.01,
+      2.0
+    );
+
     Self {
       mix: Arc::new(AtomicU16::new(mix)),
-      frequency: Arc::new(AtomicU16::new(16137)), // 0.5 seconds
-      delay: delay(0.5),
+      delay: delay(delay_value),
     }
   }
+}
 
+impl AudioEffect for DelayEffect {
   fn process_chunk(&mut self, chunk: Vec<f32>) -> Box<[f32]> {
     let mix = effect_helper::map(
       self.mix.load(Ordering::Relaxed),

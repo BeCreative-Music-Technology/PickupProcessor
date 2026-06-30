@@ -17,21 +17,56 @@ pub struct LowPassFilterEffect {
 
 static LOG_ENVIRONMENT: &str = "LowPassFilterEffect";
 
-impl AudioEffect for LowPassFilterEffect {
-  fn new(mix: u16) -> Self
+impl LowPassFilterEffect {
+  pub fn new(mix: u16, frequency: u16, q_factor: u16) -> Self
   where
-      Self: Sized
+    Self: Sized
   {
     logger::info(LOG_ENVIRONMENT, "effect created");
 
+    let frequency_f32 = Self::parse_frequency(frequency);
+    let q_factor_f32 = Self::parse_q_factor(q_factor);
+
     Self {
       mix: Arc::new(AtomicU16::new(mix)),
-      frequency: Arc::new(AtomicU16::new(3273)), // 1000 Hz
-      q_factor: Arc::new(AtomicU16::new(u16::MAX / 2)), // 0.707
-      filter: lowpass_hz(1000.0, 0.707),
+      frequency: Arc::new(AtomicU16::new(frequency)), // 3273 // 1000 Hz
+      q_factor: Arc::new(AtomicU16::new(q_factor)), // u16::MAX / 2 // 0.707
+      filter: lowpass_hz(frequency_f32, q_factor_f32),
     }
   }
 
+  fn parse_frequency(frequency: u16) -> f32 {
+    effect_helper::map(
+      frequency,
+      u16::MIN,
+      u16::MAX,
+      20.0,
+      20000.0
+    )
+  }
+
+  fn parse_q_factor(q_factor: u16) -> f32 {
+    if q_factor < u16::MAX / 2 {
+      effect_helper::map(
+        q_factor,
+        u16::MIN,
+        u16::MAX / 2,
+        0.3,
+        0.707
+      )
+    } else {
+      effect_helper::map(
+        q_factor,
+        u16::MAX / 2,
+        u16::MAX,
+        0.707,
+        10.0
+      )
+    }
+  }
+}
+
+impl AudioEffect for LowPassFilterEffect {
   fn process_chunk(&mut self, chunk: Vec<f32>) -> Box<[f32]> {
     let mix = effect_helper::map(
       self.mix.load(Ordering::Relaxed),
@@ -40,31 +75,8 @@ impl AudioEffect for LowPassFilterEffect {
       0.0,
       1.0
     );
-    let frequency = effect_helper::map(
-      self.frequency.load(Ordering::Relaxed),
-      u16::MIN,
-      u16::MAX,
-      20.0,
-      20000.0
-    );
-    let q_factor_u16 = self.q_factor.load(Ordering::Relaxed);
-    let q_factor = if q_factor_u16 < u16::MAX / 2 {
-      effect_helper::map(
-        q_factor_u16,
-        u16::MIN,
-        u16::MAX / 2,
-        0.3,
-        0.707
-      )
-    } else {
-      effect_helper::map(
-        q_factor_u16,
-        u16::MAX / 2,
-        u16::MAX,
-        0.707,
-        10.0
-      )
-    };
+    let frequency = Self::parse_frequency(self.frequency.load(Ordering::Relaxed));
+    let q_factor = Self::parse_q_factor(self.q_factor.load(Ordering::Relaxed));
 
     self.filter.set_cutoff_q(frequency, q_factor);
 
