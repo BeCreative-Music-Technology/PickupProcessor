@@ -55,40 +55,40 @@ impl VcsgpConnection {
       // Create new effect instance
       let mut effect: Box<dyn AudioEffect> = match effect_dto.effect_type {
         EffectType::Gain => {
-          let gain = match Self::get_parameter("gain", effect_dto.parameters) {
+          let gain = match Self::get_parameter("gain", &effect_dto.parameters) {
             Some(gain) => gain,
             None => { logger::error_str(LOG_ENVIRONMENT, "gain parameter not found"); return },
           };
           Box::new(GainEffect::new(effect_dto.mix, gain))
         }
         EffectType::LowPassFilter => {
-          let frequency = match Self::get_parameter("frequency", effect_dto.parameters) {
+          let frequency = match Self::get_parameter("frequency", &effect_dto.parameters) {
             Some(frequency) => frequency,
             None => { logger::error_str(LOG_ENVIRONMENT, "frequency parameter not found"); return },
           };
-          let q_factor = match Self::get_parameter("q_factor", effect_dto.parameters) {
+          let q_factor = match Self::get_parameter("q_factor", &effect_dto.parameters) {
             Some(q_factor) => q_factor,
             None => { logger::error_str(LOG_ENVIRONMENT, "q_factor parameter not found"); return },
           };
           Box::new(LowPassFilterEffect::new(effect_dto.mix, frequency, q_factor))
         },
         EffectType::Reverb => {
-          let room_size = match Self::get_parameter("room_size", effect_dto.parameters) {
+          let room_size = match Self::get_parameter("room_size", &effect_dto.parameters) {
             Some(room_size) => room_size,
             None => { logger::error_str(LOG_ENVIRONMENT, "room_size parameter not found"); return },
           };
-          let reverb_decay = match Self::get_parameter("decay", effect_dto.parameters) {
+          let reverb_decay = match Self::get_parameter("decay", &effect_dto.parameters) {
             Some(reverb_decay) => reverb_decay,
             None => { logger::error_str(LOG_ENVIRONMENT, "decay parameter not found"); return },
           };
-          let dampening = match Self::get_parameter("dampening", effect_dto.parameters) {
+          let dampening = match Self::get_parameter("dampening", &effect_dto.parameters) {
             Some(dampening) => dampening,
             None => { logger::error_str(LOG_ENVIRONMENT, "dampening parameter not found"); return },
           };
           Box::new(ReverbEffect::new(effect_dto.mix, room_size, reverb_decay, dampening))
         },
         EffectType::Delay => {
-          let delay = match Self::get_parameter("delay", effect_dto.parameters) {
+          let delay = match Self::get_parameter("delay", &effect_dto.parameters) {
             Some(delay) => delay,
             None => { logger::error_str(LOG_ENVIRONMENT, "delay parameter not found"); return },
           };
@@ -122,7 +122,7 @@ impl VcsgpConnection {
     });
   }
 
-  fn get_parameter(key: &str, parameters: Vec<EffectParameterDto>) -> Option<u16> {
+  fn get_parameter(key: &str, parameters: &Vec<EffectParameterDto>) -> Option<u16> {
     parameters.iter()
       .find(|p| p.key == key)
       .map(|p| p.value)
