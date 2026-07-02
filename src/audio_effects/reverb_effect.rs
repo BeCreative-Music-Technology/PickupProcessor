@@ -13,7 +13,7 @@ use crate::logger;
 pub struct ReverbEffect
 {
   mix: Arc<AtomicU16>, // 0..1 (percentage)
-  reverb: Box<dyn FnMut(f32) -> f32>,
+  reverb: Box<dyn FnMut(f32) -> f32 + Send>,
 }
 
 static LOG_ENVIRONMENT: &str = "ReverbEffect";
@@ -35,7 +35,7 @@ impl ReverbEffect {
     }
   }
 
-  fn reverb_factory(room_size: u16, reverb_decay: u16, dampening: u16) -> Box<dyn FnMut(f32) -> f32> {
+  fn reverb_factory(room_size: u16, reverb_decay: u16, dampening: u16) -> Box<dyn FnMut(f32) -> f32 + Send> {
     let room_size = effect_helper::map(
       room_size,
       u16::MIN,
@@ -79,7 +79,7 @@ impl AudioEffect for ReverbEffect {
     chunk
         .into_iter()
         .map(|sample| {
-          effect_helper::mix(sample, self.reverb(sample), mix)
+          effect_helper::mix(sample, (self.reverb)(sample), mix)
         })
         .collect::<Vec<f32>>()
         .into_boxed_slice()
