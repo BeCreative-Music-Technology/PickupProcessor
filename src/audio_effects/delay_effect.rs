@@ -38,7 +38,7 @@ impl DelayEffect {
 }
 
 impl AudioEffect for DelayEffect {
-  fn process_chunk(&mut self, chunk: Vec<f32>) -> Box<[f32]> {
+  fn process_chunk(&mut self, sample: f32) -> f32 {
     let mix = effect_helper::map(
       self.mix.load(Ordering::Relaxed),
       u16::MIN,
@@ -47,14 +47,8 @@ impl AudioEffect for DelayEffect {
       1.0
     );
     
-    chunk
-      .into_iter()
-      .map(|sample| {
-        let processed =self.delay.tick(&[sample].into())[0];
-        effect_helper::mix(sample, processed, mix)
-      })
-      .collect::<Vec<f32>>()
-      .into_boxed_slice()
+    let processed = self.delay.tick(&[sample].into())[0];
+    effect_helper::mix(sample, processed, mix)
   }
 
   fn set_value(&mut self, key: &str, value: u16) -> Result<(), Error> {

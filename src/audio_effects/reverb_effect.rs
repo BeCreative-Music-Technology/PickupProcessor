@@ -67,7 +67,7 @@ impl ReverbEffect {
 }
 
 impl AudioEffect for ReverbEffect {
-  fn process_chunk(&mut self, chunk: Vec<f32>) -> Box<[f32]> {
+  fn process_chunk(&mut self, sample: f32) -> f32 {
     let mix = effect_helper::map(
       self.mix.load(Ordering::Relaxed),
       u16::MIN,
@@ -76,13 +76,7 @@ impl AudioEffect for ReverbEffect {
       1.0
     );
 
-    chunk
-        .into_iter()
-        .map(|sample| {
-          effect_helper::mix(sample, (self.reverb)(sample), mix)
-        })
-        .collect::<Vec<f32>>()
-        .into_boxed_slice()
+    effect_helper::mix(sample, (self.reverb)(sample), mix)
   }
 
   fn set_value(&mut self, key: &str, value: u16) -> Result<(), Error> {

@@ -67,7 +67,7 @@ impl LowPassFilterEffect {
 }
 
 impl AudioEffect for LowPassFilterEffect {
-  fn process_chunk(&mut self, chunk: Vec<f32>) -> Box<[f32]> {
+  fn process_chunk(&mut self, sample: f32) -> f32 {
     let mix = effect_helper::map(
       self.mix.load(Ordering::Relaxed),
       u16::MIN,
@@ -79,15 +79,9 @@ impl AudioEffect for LowPassFilterEffect {
     let q_factor = Self::parse_q_factor(self.q_factor.load(Ordering::Relaxed));
 
     self.filter.set_cutoff_q(frequency, q_factor);
-
-    chunk
-        .into_iter()
-        .map(|sample| {
-          let processed = self.filter.tick(&[sample].into())[0];
-          effect_helper::mix(sample, processed, mix)
-        })
-        .collect::<Vec<f32>>()
-        .into_boxed_slice()
+    
+    let processed = self.filter.tick(&[sample].into())[0];
+    effect_helper::mix(sample, processed, mix)
   }
 
   fn set_value(&mut self, key: &str, value: u16) -> Result<(), Error> {

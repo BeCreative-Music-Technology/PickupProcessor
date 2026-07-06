@@ -5,3 +5,4 @@ pub mod low_pass_filter_effect;
 pub mod reverb_effect;
 mod effect_input_observer;
 pub mod delay_effect;
+mod hard_clipper_effect;

@@ -75,27 +75,27 @@ impl AudioBus {
           Ok(incoming_audio) => incoming_audio,
           Err(_) => continue,
         };
-
-        // Clone, empty and process data from effect buffer
-        let mut processed_audio = {
-          let mut effect_buffer = thread_effect_buffer.lock().unwrap();
-          effect_buffer.push(incoming_audio);
-
-          if effect_buffer.len() < buffer_length {
-            continue;
-          }
-
-          let data = effect_buffer.clone();
-          effect_buffer.clear();
-          data
-        };
+        let mut processed_audio = incoming_audio.clone();
         for effect in thread_effects.lock().unwrap().iter_mut() {
           processed_audio = effect
             .process_chunk(processed_audio)
-            .into_vec();
         }
 
-        _ = output_producer.push_partial_slice(&processed_audio);
+        // // Clone, empty and process data from effect buffer
+        // let mut processed_audio = {
+        //   let mut effect_buffer = thread_effect_buffer.lock().unwrap();
+        //   effect_buffer.push(incoming_audio);
+        // 
+        //   if effect_buffer.len() < buffer_length {
+        //     continue;
+        //   }
+        // 
+        //   let data = effect_buffer.clone();
+        //   effect_buffer.clear();
+        //   data
+        // };
+
+        _ = output_producer.push(processed_audio);
       }
     });
 

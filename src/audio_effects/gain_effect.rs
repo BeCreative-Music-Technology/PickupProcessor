@@ -51,7 +51,7 @@ impl AudioEffect for GainEffect {
   ///
   /// `chunk` takes a `Vec<f32>` which contains the data to be processed by the gain effect.
   ///
-  fn process_chunk(&mut self, chunk: Vec<f32>) -> Box<[f32]> {
+  fn process_chunk(&mut self, sample: f32) -> f32 {
     let gain = self.gain_value.load(Ordering::Relaxed);
     let gain_db = Self::parse_gain(gain);
 
@@ -63,10 +63,8 @@ impl AudioEffect for GainEffect {
       1.0
     );
 
-    chunk.iter().map(|sample| {
-      let processed = sample * Self::db_to_gain(gain_db);
-      effect_helper::mix(*sample, processed, mix)
-    }).collect()
+    let processed = sample * Self::db_to_gain(gain_db);
+    effect_helper::mix(sample, processed, mix)
   }
 
   ///
