@@ -5,12 +5,17 @@
       "enabled": true,
       "effects": [
         {
-          "effect_type": "gain",
+          "effect_type": "low_pass_filter",
           "mix": 65535,
           "parameters": [
             {
-              "key": "gain",
-              "value": 32767,
+              "key": "frequency",
+              "value": 3273,
+              "input_control_id": "rotary_0"
+            },
+            {
+              "key": "q_factor",
+              "value": 65535,
               "input_control_id": "rotary_0"
             }
           ]
@@ -24,11 +29,6 @@
     },
     {
       "id": "bus_2",
-      "enabled": true,
-      "effects": []
-    },
-    {
-      "id": "bus_3",
       "enabled": true,
       "effects": []
     }

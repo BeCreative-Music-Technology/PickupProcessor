@@ -23,7 +23,7 @@ impl GainEffect {
 
     Self {
       mix: Arc::new(AtomicU16::new(mix)),
-      gain_value: Arc::new(AtomicU16::new(gain)), // u16::MAX / 2
+      gain_value: Arc::new(AtomicU16::new(gain)), // 32767
     }
   }
 

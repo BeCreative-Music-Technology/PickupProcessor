@@ -212,7 +212,7 @@ struct EffectParameterDto {
   input_control_id: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]
 enum EffectType {
   Gain,
