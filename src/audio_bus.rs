@@ -79,7 +79,7 @@ impl AudioBus {
           processed_audio = effect
             .process_chunk(processed_audio)
         }
-        hard_clipper.process_chunk(processed_audio);
+        processed_audio = hard_clipper.process_chunk(processed_audio);
 
         _ = output_producer.push(processed_audio);
       }
