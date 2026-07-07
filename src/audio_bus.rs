@@ -4,6 +4,7 @@ use std::thread;
 use std::thread::JoinHandle;
 use rtrb::{Consumer, RingBuffer};
 use crate::audio_effects::audio_effect::AudioEffect;
+use crate::audio_effects::hard_clipper_effect::HardClipperEffect;
 use crate::audio_output::AudioOutput;
 use crate::auxiliary_output::AuxiliaryOutput;
 use crate::error::Error;
@@ -13,9 +14,8 @@ pub struct AudioBus {
   enabled: Arc<AtomicBool>,
   audio_output: Box<dyn AudioOutput>,
   effects: Arc<Mutex<Vec<Box<dyn AudioEffect>>>>,
-  effect_buffer: Arc<Mutex<Vec<f32>>>,
   bus_id: String,
-  thread: Option<JoinHandle<()>>
+  thread: JoinHandle<()>,
 }
 
 static BUS_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
@@ -58,39 +58,31 @@ impl AudioBus {
     let effects = Arc::new(Mutex::new(Vec::<Box<dyn AudioEffect>>::new()));
     let thread_effects = effects.clone();
 
-    let effect_buffer = Arc::new(Mutex::new(Vec::new()));
-    let thread_effect_buffer = effect_buffer.clone();
-
     let atomic_enabled = Arc::new(AtomicBool::new(enabled));
     let thread_enabled = Arc::clone(&atomic_enabled);
 
     // Create a thread for processing the incoming audio
-    let handle = thread::spawn(move || while thread_enabled.load(Ordering::Relaxed) {
-      let incoming_audio = match consumer.pop() {
-        Ok(incoming_audio) => incoming_audio,
-        Err(_) => continue,
-      };
+    let handle = thread::spawn(move || {
+      let mut hard_clipper = HardClipperEffect::new(-1.0, 1.0);
 
-      // Clone, empty and process data from effect buffer
-      let mut processed_audio = {
-        let mut effect_buffer = thread_effect_buffer.lock().unwrap();
-        effect_buffer.push(incoming_audio);
+      loop {
+        if !thread_enabled.load(Ordering::Relaxed) {
+          thread::park();
+        };
 
-        if effect_buffer.len() < buffer_length {
-          continue;
-        }
-
-        let data = effect_buffer.clone();
-        effect_buffer.clear();
-        data
-      };
-      for effect in thread_effects.lock().unwrap().iter_mut() {
-        processed_audio = effect
+        let incoming_audio = match consumer.pop() {
+          Ok(incoming_audio) => incoming_audio,
+          Err(_) => continue,
+        };
+        let mut processed_audio = incoming_audio.clone();
+        for effect in thread_effects.lock().unwrap().iter_mut() {
+          processed_audio = effect
             .process_chunk(processed_audio)
-            .into_vec();
-      }
+        }
+        processed_audio = hard_clipper.process_chunk(processed_audio);
 
-      _ = output_producer.push_partial_slice(&processed_audio);
+        _ = output_producer.push(processed_audio);
+      }
     });
 
     logger::info(LOG_ENVIRONMENT, &format!("{} created", &bus_id));
@@ -99,9 +91,8 @@ impl AudioBus {
       enabled: atomic_enabled,
       audio_output: Box::new(audio_output),
       effects,
-      effect_buffer,
       bus_id,
-      thread: Some(handle),
+      thread: handle,
     })
   }
 
@@ -159,6 +150,7 @@ impl AudioBus {
   ///
   pub fn enable(&mut self) {
     logger::info(LOG_ENVIRONMENT, &format!("{} enabled", &self.bus_id));
+    self.thread.thread().unpark();
     self.enabled.store(true, Ordering::Relaxed);
   }
 
