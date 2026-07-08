@@ -2,13 +2,15 @@
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::thread;
 use rppal::gpio::{Gpio, InputPin, Level, OutputPin};
-use crate::control_input::{input_helper, ControlInput, ObservableControlInput};
+use rppal::hal::Delay;
+use rppal::i2c::{I2c};
+use vl53l0x_simple::{Vl53l0x};
+use crate::control_input::{input_helper, ControlChange, ControlInput, ObservableControlInput};
 use crate::logger;
 
 struct LaserInput {
   observable: Arc<ObservableControlInput>,
   laser_id: String,
-  
 }
 
 static LASER_INPUT_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
@@ -41,29 +43,47 @@ impl ControlInput for LaserInput {
 }
 
 impl LaserInput {
-  const LASER_DIRECTION_PIN: u8 = 16;
-  const LASER_0_INC_PIN: u8 = 5;
-  const LASER_1_INC_PIN: u8 = 6;
-  const LASER_2_INC_PIN: u8 = 13;
+  const TOF_X_SHUT_1: u8 = 8;
+  const TOF_X_SHUT_2: u8 = 7;
+  const TOF_MIN_DISTANCE: u16 = 50;
+  const TOF_MAX_DISTANCE: u16 = 300;
   const PHOTOSENSOR_READ_PIN: u8 = 10;
   const PHOTOSENSOR_MUX_S0_PIN: u8 = 11;
   const PHOTOSENSOR_MUX_S1_PIN: u8 = 9;
 
   fn process(observable: Arc<ObservableControlInput>) {
     let gpio = Gpio::new().expect("Failed to initialize GPIO");
+    let i2c = I2c::new().expect("Failed to initialize I2C");
 
-    // Laser module
-    let mut laser_direction_pin = gpio.get(Self::LASER_DIRECTION_PIN).unwrap().into_output();
-    let mut laser_0_inc_pin = gpio.get(Self::LASER_0_INC_PIN).unwrap().into_output();
-    laser_0_inc_pin.set_high();
-    let mut laser_1_inc_pin = gpio.get(Self::LASER_1_INC_PIN).unwrap().into_output();
-    laser_1_inc_pin.set_high();
-    let mut laser_2_inc_pin = gpio.get(Self::LASER_2_INC_PIN).unwrap().into_output();
-    laser_2_inc_pin.set_high();
+    // Time of flight sensors
+    let mut x_shut_1 = gpio.get(Self::TOF_X_SHUT_1).unwrap().into_output();
+    let mut x_shut_2 = gpio.get(Self::TOF_X_SHUT_2).unwrap().into_output();
+    let mut delay = Delay::new();
 
-    let set_laser_0_brightness = Self::set_laser_brightness_factory(&mut laser_direction_pin, laser_0_inc_pin);
-    let set_laser_1_brightness = Self::set_laser_brightness_factory(&mut laser_direction_pin, laser_1_inc_pin);
-    let set_laser_2_brightness = Self::set_laser_brightness_factory(&mut laser_direction_pin, laser_2_inc_pin);
+    x_shut_1.set_low();
+    x_shut_2.set_low();
+
+    input_helper::sleep_millis(100);
+
+    x_shut_1.set_high();
+    input_helper::sleep_millis(10);
+    let mut tof_1 = match Vl53l0x::new(&i2c, x_shut_1, 0x30, &mut delay) {
+      Ok(tof) => tof,
+      Err(e) => {
+        logger::error_str(LOG_ENVIRONMENT, &e.to_string());
+        return
+      }
+    };
+
+    x_shut_2.set_high();
+    input_helper::sleep_millis(10);
+    let mut tof_2 = match Vl53l0x::new(&i2c, x_shut_2, 0x30, &mut delay) {
+      Ok(tof) => tof,
+      Err(e) => {
+        logger::error_str(LOG_ENVIRONMENT, &e.to_string());
+        return
+      }
+    };
 
     // Light sensor module
     let photosensor_read_pin = gpio.get(Self::PHOTOSENSOR_READ_PIN).unwrap().into_input_pulldown();
@@ -78,19 +98,25 @@ impl LaserInput {
 
     loop {
       if read_light_sensor(0) == Level::Low {
-        set_laser_0_brightness(90);
-      } else {
-        set_laser_0_brightness(100);
+        let readout = Self::read_tof_sensors(&mut tof_1, &mut tof_2);
+        observable.notify(&ControlChange {
+          control_id: "laser_0".to_string(),
+          value: Self::parse_to_cc_value(readout),
+        });
       }
       if read_light_sensor(1) == Level::Low {
-        set_laser_1_brightness(90);
-      } else {
-        set_laser_1_brightness(100);
+        let readout = Self::read_tof_sensors(&mut tof_1, &mut tof_2);
+        observable.notify(&ControlChange {
+          control_id: "laser_1".to_string(),
+          value: Self::parse_to_cc_value(readout),
+        });
       }
       if read_light_sensor(2) == Level::Low {
-        set_laser_2_brightness(90);
-      } else {
-        set_laser_2_brightness(100);
+        let readout = Self::read_tof_sensors(&mut tof_1, &mut tof_2);
+        observable.notify(&ControlChange {
+          control_id: "laser_2".to_string(),
+          value: Self::parse_to_cc_value(readout),
+        });
       }
     }
   }
@@ -118,58 +144,18 @@ impl LaserInput {
     })
   }
 
-  fn set_laser_brightness_factory(direction_pin: &mut OutputPin, mut increment_pin: OutputPin) -> Box<dyn FnMut(u8)> {
-    let mut step_count = 100_u8;
+  fn read_tof_sensors(
+    tof_1: &mut Vl53l0x<&I2c, OutputPin>,
+    tof_2: &mut Vl53l0x<&I2c, OutputPin>,
+  ) -> u16 {
+    let Ok(Some(res_1)) = tof_1.try_read();
+    let Ok(Some(res_2)) = tof_2.try_read();
 
-    // Reset laser potentiometer to zero resistance (full brightness)
-    for _ in 101 {
-      Self::set_wiper_direction(direction_pin, Direction::Down);
-
-      increment_pin.set_low();
-      input_helper::sleep_micros(5);
-      increment_pin.set_high();
-      input_helper::sleep_micros(5);
-    }
-
-    Box::new(move |brightness| {
-      while step_count != brightness {
-        if step_count < brightness {
-          step_count += 1;
-          Self::set_wiper_direction(direction_pin, Direction::Up);
-
-          increment_pin.set_low();
-          input_helper::sleep_micros(5);
-          increment_pin.set_high();
-          input_helper::sleep_micros(5);
-        }
-        else {
-          step_count -= 1;
-          Self::set_wiper_direction(direction_pin, Direction::Down);
-
-          increment_pin.set_low();
-          input_helper::sleep_micros(5);
-          increment_pin.set_high();
-          input_helper::sleep_micros(5);
-        }
-      }
-    })
+    res_1 + res_2 / 2
   }
 
-  fn set_wiper_direction(direction_pin: &mut OutputPin, direction: Direction) {
-    if direction_pin.is_set_high() && direction == Direction::Down {
-      direction_pin.set_low();
-      input_helper::sleep_micros(5);
-    }
-    else if direction_pin.is_set_low() && direction == Direction::Up {
-      direction_pin.set_high();
-      input_helper::sleep_micros(5);
-    }
+  fn parse_to_cc_value(value: u16) -> u16 {
+    let normalized = (value - Self::TOF_MIN_DISTANCE) / (Self::TOF_MAX_DISTANCE - Self::TOF_MIN_DISTANCE);
+    normalized * (u16::MAX - u16::MIN) + u16::MIN
   }
-}
-
-
-#[derive(Eq, PartialEq)]
-enum Direction {
-  Up,
-  Down,
 }
