@@ -32,14 +32,7 @@ impl GainEffect {
   }
 
   fn parse_gain(gain: u16) -> f32 {
-    let u16_half = u16::MAX / 2;
-    if gain < u16_half {
-      effect_helper::map(gain, u16::MIN, u16_half, -6.0, 0.0) // -6 dB -> 0 dB
-    } else if gain > u16_half {
-      effect_helper::map(gain, u16_half, u16::MAX, 0.0, 18.0) // 0 dB -> 18 dB
-    } else {
-      1.0
-    }
+    effect_helper::map(gain, u16::MIN, u16::MAX, -6.0, 18.0) // -6 dB -> 18 dB
   }
 }
 

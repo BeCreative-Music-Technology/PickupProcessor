@@ -46,23 +46,13 @@ impl LowPassFilterEffect {
   }
 
   fn parse_q_factor(q_factor: u16) -> f32 {
-    if q_factor < u16::MAX / 2 {
-      effect_helper::map(
-        q_factor,
-        u16::MIN,
-        u16::MAX / 2,
-        0.3,
-        0.707
-      )
-    } else {
-      effect_helper::map(
-        q_factor,
-        u16::MAX / 2,
-        u16::MAX,
-        0.707,
-        10.0
-      )
-    }
+    effect_helper::map(
+      q_factor,
+      u16::MIN,
+      u16::MAX,
+      0.3,
+      10.0
+    )
   }
 }
 
