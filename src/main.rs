@@ -29,7 +29,7 @@ fn main() {
     let mut routing_director = routing_director_pointer.lock().unwrap();
 
     // Instantiate audio buses
-    ["system:playback_3", "system:playback_4", "system:playback_5"]
+    ["system:playback_4", "system:playback_5", "system:playback_6"]
         .iter().for_each(|output_id| {
         routing_director
             .add_audio_bus(output_id)
