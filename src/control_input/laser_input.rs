@@ -3,12 +3,12 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::thread;
 use rppal::gpio::{Gpio, InputPin, Level, OutputPin};
 use rppal::hal::Delay;
-use rppal::i2c::{Error, I2c};
+use rppal::i2c::{I2c};
 use vl53l0x_simple::{Vl53l0x};
 use crate::control_input::{input_helper, ControlChange, ControlInput, ObservableControlInput};
 use crate::logger;
 
-struct LaserInput {
+pub struct LaserInput {
   observable: Arc<ObservableControlInput>,
   laser_id: String,
 }

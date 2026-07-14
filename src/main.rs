@@ -2,6 +2,7 @@ use std::env;
 use std::sync::{Arc, Mutex};
 use crate::routing_director::RoutingDirector;
 use crate::control_input::{ControlInput, RotaryInput};
+use crate::control_input::laser_input::LaserInput;
 use crate::external_connection::{ExternalConnection, VcsgpConnection};
 
 mod audio_effects;
@@ -38,7 +39,8 @@ fn main() {
     drop(routing_director);
 
     let control_inputs: Arc<Mutex<Vec<Box<dyn ControlInput>>>> = Arc::new(Mutex::new(Vec::new()));
-    control_inputs.lock().unwrap().push(Box::new(RotaryInput::new()));
+    control_inputs.lock().unwrap().push(Box::new(LaserInput::new()));
+    // control_inputs.lock().unwrap().push(Box::new(RotaryInput::new()));
 
     // Setup VCSGP connection
     let protocol_connection = VcsgpConnection::new("[::]:31628")

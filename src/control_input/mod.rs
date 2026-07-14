@@ -1,7 +1,7 @@
 pub mod control_input_observer;
 pub mod control_input;
 pub mod observable_control_input;
-mod laser_input;
+pub mod laser_input;
 mod input_helper;
 
 // Re-export items so other packages can use `use crate::control_input::ControlChange;`
