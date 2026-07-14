@@ -53,7 +53,6 @@ impl LaserInput {
 
   fn process(observable: Arc<ObservableControlInput>) {
     let gpio = Gpio::new().expect("Failed to initialize GPIO");
-    let i2c = I2c::new().expect("Failed to initialize I2C");
 
     // Time of flight sensors
     let mut x_shut_1 = gpio.get(Self::TOF_X_SHUT_1).unwrap().into_output();
@@ -67,7 +66,12 @@ impl LaserInput {
 
     x_shut_1.set_high();
     input_helper::sleep_millis(10);
-    let mut tof_1 = match Vl53l0x::new(&i2c, x_shut_1, 0x30, &mut delay) {
+    let mut tof_1 = match Vl53l0x::new(
+      I2c::new().expect("Failed to initialize I2C"),
+      x_shut_1,
+      0x30,
+      &mut delay
+    ) {
       Ok(tof) => tof,
       Err(e) => {
         logger::error_str(LOG_ENVIRONMENT, &e.to_string());
@@ -77,7 +81,12 @@ impl LaserInput {
 
     x_shut_2.set_high();
     input_helper::sleep_millis(10);
-    let mut tof_2 = match Vl53l0x::new(&i2c, x_shut_2, 0x30, &mut delay) {
+    let mut tof_2 = match Vl53l0x::new(
+      I2c::new().expect("Failed to initialize I2C"),
+      x_shut_2,
+      0x31,
+      &mut delay
+    ) {
       Ok(tof) => tof,
       Err(e) => {
         logger::error_str(LOG_ENVIRONMENT, &e.to_string());
@@ -145,8 +154,8 @@ impl LaserInput {
   }
 
   fn read_tof_sensors(
-    tof_1: &mut Vl53l0x<&I2c, OutputPin>,
-    tof_2: &mut Vl53l0x<&I2c, OutputPin>,
+    tof_1: &mut Vl53l0x<I2c, OutputPin>,
+    tof_2: &mut Vl53l0x<I2c, OutputPin>,
   ) -> u16 {
     let Ok(Some(res_1)) = tof_1.try_read();
     let Ok(Some(res_2)) = tof_2.try_read();
