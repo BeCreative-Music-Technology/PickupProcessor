@@ -74,7 +74,7 @@ impl LaserInput {
     ) {
       Ok(tof) => tof,
       Err(e) => {
-        logger::error_str(LOG_ENVIRONMENT, &format!("failed to create ToF {:?}", e));
+        logger::error_str(LOG_ENVIRONMENT, &format!("failed to create ToF: {:?}", e));
         return
       }
     };
@@ -89,7 +89,7 @@ impl LaserInput {
     ) {
       Ok(tof) => tof,
       Err(e) => {
-        logger::error_str(LOG_ENVIRONMENT, &format!("failed to create ToF {:?}", e));
+        logger::error_str(LOG_ENVIRONMENT, &format!("failed to create ToF: {:?}", e));
         return
       }
     };
