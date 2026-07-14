@@ -108,6 +108,7 @@ impl LaserInput {
     loop {
       if read_light_sensor(0) == Level::Low {
         let readout = Self::read_tof_sensors(&mut tof_1, &mut tof_2);
+        logger::log(LOG_ENVIRONMENT, &format!("Laser 0: {}", readout));
         observable.notify(&ControlChange {
           control_id: "laser_0".to_string(),
           value: Self::parse_to_cc_value(readout),
@@ -115,6 +116,7 @@ impl LaserInput {
       }
       if read_light_sensor(1) == Level::Low {
         let readout = Self::read_tof_sensors(&mut tof_1, &mut tof_2);
+        logger::log(LOG_ENVIRONMENT, &format!("Laser 1: {}", readout));
         observable.notify(&ControlChange {
           control_id: "laser_1".to_string(),
           value: Self::parse_to_cc_value(readout),
@@ -122,6 +124,7 @@ impl LaserInput {
       }
       if read_light_sensor(2) == Level::Low {
         let readout = Self::read_tof_sensors(&mut tof_1, &mut tof_2);
+        logger::log(LOG_ENVIRONMENT, &format!("Laser 2: {}", readout));
         observable.notify(&ControlChange {
           control_id: "laser_2".to_string(),
           value: Self::parse_to_cc_value(readout),
