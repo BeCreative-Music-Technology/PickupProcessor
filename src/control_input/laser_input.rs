@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::thread;
 use rppal::gpio::{Gpio, InputPin, Level, OutputPin};
 use rppal::hal::Delay;
-use rppal::i2c::{I2c};
+use rppal::i2c::{Error, I2c};
 use vl53l0x_simple::{Vl53l0x};
 use crate::control_input::{input_helper, ControlChange, ControlInput, ObservableControlInput};
 use crate::logger;
@@ -74,7 +74,7 @@ impl LaserInput {
     ) {
       Ok(tof) => tof,
       Err(e) => {
-        logger::error_str(LOG_ENVIRONMENT, &e.to_string());
+        logger::error_str(LOG_ENVIRONMENT, &format!("{:?}", e));
         return
       }
     };
@@ -89,7 +89,7 @@ impl LaserInput {
     ) {
       Ok(tof) => tof,
       Err(e) => {
-        logger::error_str(LOG_ENVIRONMENT, &e.to_string());
+        logger::error_str(LOG_ENVIRONMENT, &format!("{:?}", e));
         return
       }
     };
@@ -157,8 +157,22 @@ impl LaserInput {
     tof_1: &mut Vl53l0x<I2c, OutputPin>,
     tof_2: &mut Vl53l0x<I2c, OutputPin>,
   ) -> u16 {
-    let Ok(Some(res_1)) = tof_1.try_read();
-    let Ok(Some(res_2)) = tof_2.try_read();
+    let res_1 = match tof_1.try_read() {
+      Ok(Some(v)) => v,
+      Ok(None) => return 0,
+      Err(e) => {
+        logger::error_str(LOG_ENVIRONMENT, &format!("TOF2 read error: {:?}", e));
+        return 0;
+      }
+    };
+    let res_2 = match tof_2.try_read() {
+      Ok(Some(v)) => v,
+      Ok(None) => return 0,
+      Err(e) => {
+        logger::error_str(LOG_ENVIRONMENT, &format!("TOF2 read error: {:?}", e));
+        return 0;
+      }
+    };
 
     res_1 + res_2 / 2
   }
