@@ -99,7 +99,7 @@ impl LaserInput {
     let photosensor_s0_mux_pin = gpio.get(Self::PHOTOSENSOR_MUX_S0_PIN).unwrap().into_output();
     let photosensor_s1_mux_pin = gpio.get(Self::PHOTOSENSOR_MUX_S1_PIN).unwrap().into_output();
 
-    let read_light_sensor = Self::read_light_sensor_factory(
+    let mut read_light_sensor = Self::read_light_sensor_factory(
       photosensor_read_pin,
       photosensor_s0_mux_pin,
       photosensor_s1_mux_pin
