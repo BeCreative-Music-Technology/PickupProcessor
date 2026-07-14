@@ -65,7 +65,7 @@ impl LaserInput {
     input_helper::sleep_millis(100);
 
     x_shut_1.set_high();
-    input_helper::sleep_millis(10);
+    input_helper::sleep_millis(50);
     let mut tof_1 = match Vl53l0x::new(
       I2c::new().expect("Failed to initialize I2C"),
       x_shut_1,
@@ -80,7 +80,7 @@ impl LaserInput {
     };
 
     x_shut_2.set_high();
-    input_helper::sleep_millis(10);
+    input_helper::sleep_millis(50);
     let mut tof_2 = match Vl53l0x::new(
       I2c::new().expect("Failed to initialize I2C"),
       x_shut_2,
@@ -177,7 +177,7 @@ impl LaserInput {
       }
     };
 
-    res_1 + res_2 / 2
+    (res_1 + res_2) / 2
   }
 
   fn parse_to_cc_value(value: u16) -> u16 {
