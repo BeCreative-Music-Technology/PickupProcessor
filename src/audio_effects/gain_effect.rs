@@ -10,6 +10,8 @@ use crate::logger;
 pub struct GainEffect {
   mix: Arc<AtomicU16>,
   gain_value: Arc<AtomicU16>,
+  // Cached (raw value, linear factor) so `powf` only runs when the gain changes
+  gain_cache: (u16, f32),
 }
 
 static LOG_ENVIRONMENT: &str = "GainEffect";
@@ -23,7 +25,8 @@ impl GainEffect {
 
     Self {
       mix: Arc::new(AtomicU16::new(mix)),
-      gain_value: Arc::new(AtomicU16::new(gain)), // 32767
+      gain_value: Arc::new(AtomicU16::new(gain)), // 16384 // 0 dB
+      gain_cache: (gain, Self::db_to_gain(Self::parse_gain(gain))),
     }
   }
 
@@ -42,11 +45,13 @@ impl AudioEffect for GainEffect {
   /// The gain is done by multiplying the signal with a set factor.
   /// Minimum gain value is -6db, highest gain value is +18db.
   ///
-  /// `chunk` takes a `Vec<f32>` which contains the data to be processed by the gain effect.
+  /// `sample` takes an `f32` which contains the sample to be processed by the gain effect.
   ///
   fn process_chunk(&mut self, sample: f32) -> f32 {
     let gain = self.gain_value.load(Ordering::Relaxed);
-    let gain_db = Self::parse_gain(gain);
+    if gain != self.gain_cache.0 {
+      self.gain_cache = (gain, Self::db_to_gain(Self::parse_gain(gain)));
+    }
 
     let mix = effect_helper::map(
       self.mix.load(Ordering::Relaxed),
@@ -56,13 +61,13 @@ impl AudioEffect for GainEffect {
       1.0
     );
 
-    let processed = sample * Self::db_to_gain(gain_db);
+    let processed = sample * self.gain_cache.1;
     effect_helper::mix(sample, processed, mix)
   }
 
   ///
   /// Sets the new value of the gain effect.
-  /// `u16: 0` is -6db, `u16: 327675` is +0db, `u16: 65,535` is +18db.
+  /// `u16: 0` is -6db, `u16: 16384` is +0db, `u16: 65,535` is +18db.
   ///
   /// `key` takes a `&str` with the key of the parameter to be changed, for example `"gain"`.
   ///
@@ -85,9 +90,7 @@ impl AudioEffect for GainEffect {
       "gain" => &self.gain_value,
       _ => return Err(Error::new("Parameter not found")),
     };
-    Ok(Arc::new(EffectInputObserver {
-      value_storage: Arc::clone(value)
-    }))
+    Ok(Arc::new(EffectInputObserver::new(value)))
   }
 
   fn get_type(&self) -> &str {

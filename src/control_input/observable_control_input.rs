@@ -24,6 +24,8 @@ impl ObservableControlInput {
     // Using &self allows registration even when wrapped inside an Arc
     pub fn register(&self, observer: Arc<dyn ControlInputObserver>) {
         if let Ok(mut subs) = self.observers.lock() {
+            // Prune observers of effects that no longer exist, so re-sending a chain does not leak them
+            subs.retain(|sub| sub.is_active());
             subs.push(observer);
         }
     }

@@ -8,4 +8,5 @@ pub trait AudioInput: Send + Sync {
   ) -> Result<Self, Error> where Self: Sized;
   fn close_stream(&mut self);
   fn id(&self) -> &str;
+  fn sample_rate(&self) -> usize;
 }

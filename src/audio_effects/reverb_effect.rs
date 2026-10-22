@@ -1,4 +1,4 @@
-﻿use std::sync::Arc;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU16, Ordering};
 use fundsp::Frame;
 use fundsp::numeric_array::generic_array::GenericArray;
@@ -19,23 +19,24 @@ pub struct ReverbEffect
 static LOG_ENVIRONMENT: &str = "ReverbEffect";
 
 impl ReverbEffect {
-  pub fn new(mix: u16, room_size: u16, reverb_decay: u16, dampening: u16) -> Self
+  ///
+  /// Creates a new reverb.
+  /// Typical values: `room_size` u16::MAX / 2 (20 meters), `reverb_decay` 6524 (2 seconds),
+  /// `dampening` u16::MAX / 2 (50%).
+  ///
+  pub fn new(mix: u16, room_size: u16, reverb_decay: u16, dampening: u16, sample_rate: f64) -> Self
   where
     Self: Sized
   {
-    let room_size = room_size; // u16::MAX / 2; // 20 meters
-    let reverb_decay = reverb_decay; // 6524; // 2 seconds
-    let dampening = dampening; // u16::MAX / 2; // 50%
-
     logger::info(LOG_ENVIRONMENT, "effect created");
 
     Self {
       mix: Arc::new(AtomicU16::new(mix)),
-      reverb: Self::reverb_factory(room_size, reverb_decay, dampening),
+      reverb: Self::reverb_factory(room_size, reverb_decay, dampening, sample_rate),
     }
   }
 
-  fn reverb_factory(room_size: u16, reverb_decay: u16, dampening: u16) -> Box<dyn FnMut(f32) -> f32 + Send> {
+  fn reverb_factory(room_size: u16, reverb_decay: u16, dampening: u16, sample_rate: f64) -> Box<dyn FnMut(f32) -> f32 + Send> {
     let room_size = effect_helper::map(
       room_size,
       u16::MIN,
@@ -59,6 +60,7 @@ impl ReverbEffect {
     );
 
     let mut reverb = reverb_stereo(room_size, reverb_decay, dampening);
+    reverb.set_sample_rate(sample_rate);
 
     Box::new(move |sample: f32| {
       reverb.tick(&Frame::new(GenericArray::<f32, U2>::from_array([sample, sample])))[0]
@@ -93,9 +95,7 @@ impl AudioEffect for ReverbEffect {
       "mix" => &self.mix,
       _ => return Err(Error::new("Parameter not found")),
     };
-    Ok(Arc::new(EffectInputObserver {
-      value_storage: Arc::clone(value),
-    }))
+    Ok(Arc::new(EffectInputObserver::new(value)))
   }
 
   fn get_type(&self) -> &str {

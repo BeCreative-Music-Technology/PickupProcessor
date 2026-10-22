@@ -13,12 +13,14 @@ pub struct LowPassFilterEffect {
   frequency: Arc<AtomicU16>,
   q_factor: Arc<AtomicU16>,
   filter: An<FixedSvf<f32, LowpassMode<f32>>>,
+  // Raw (frequency, q_factor) the filter coefficients were last calculated for
+  coefficient_cache: (u16, u16),
 }
 
 static LOG_ENVIRONMENT: &str = "LowPassFilterEffect";
 
 impl LowPassFilterEffect {
-  pub fn new(mix: u16, frequency: u16, q_factor: u16) -> Self
+  pub fn new(mix: u16, frequency: u16, q_factor: u16, sample_rate: f64) -> Self
   where
     Self: Sized
   {
@@ -27,11 +29,15 @@ impl LowPassFilterEffect {
     let frequency_f32 = Self::parse_frequency(frequency);
     let q_factor_f32 = Self::parse_q_factor(q_factor);
 
+    let mut filter = lowpass_hz(frequency_f32, q_factor_f32);
+    filter.set_sample_rate(sample_rate);
+
     Self {
       mix: Arc::new(AtomicU16::new(mix)),
       frequency: Arc::new(AtomicU16::new(frequency)), // 3273 // 1000 Hz
-      q_factor: Arc::new(AtomicU16::new(q_factor)), // u16::MAX / 2 // 0.707
-      filter: lowpass_hz(frequency_f32, q_factor_f32),
+      q_factor: Arc::new(AtomicU16::new(q_factor)), // 2750 // 0.707
+      filter,
+      coefficient_cache: (frequency, q_factor),
     }
   }
 
@@ -65,11 +71,14 @@ impl AudioEffect for LowPassFilterEffect {
       0.0,
       1.0
     );
-    let frequency = Self::parse_frequency(self.frequency.load(Ordering::Relaxed));
-    let q_factor = Self::parse_q_factor(self.q_factor.load(Ordering::Relaxed));
 
-    self.filter.set_cutoff_q(frequency, q_factor);
-    
+    // Recalculating the filter coefficients is expensive, so only do it when a parameter changed
+    let parameters = (self.frequency.load(Ordering::Relaxed), self.q_factor.load(Ordering::Relaxed));
+    if parameters != self.coefficient_cache {
+      self.coefficient_cache = parameters;
+      self.filter.set_cutoff_q(Self::parse_frequency(parameters.0), Self::parse_q_factor(parameters.1));
+    }
+
     let processed = self.filter.tick(&[sample].into())[0];
     effect_helper::mix(sample, processed, mix)
   }
@@ -92,9 +101,7 @@ impl AudioEffect for LowPassFilterEffect {
       "q_factor" => &self.q_factor,
       _ => return Err(Error::new("Parameter not found")),
     };
-    Ok(Arc::new(EffectInputObserver {
-      value_storage: Arc::clone(value),
-    }))
+    Ok(Arc::new(EffectInputObserver::new(value)))
   }
 
   fn get_type(&self) -> &str {

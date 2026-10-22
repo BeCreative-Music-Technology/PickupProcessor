@@ -1,4 +1,4 @@
-﻿use std::sync::Arc;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU16, Ordering};
 use fundsp::prelude32::{delay, An, Delay};
 use crate::audio_effects::audio_effect::AudioEffect;
@@ -8,7 +8,7 @@ use crate::control_input::ControlInputObserver;
 use crate::error::Error;
 use crate::logger;
 
-static LOG_ENVIRONMENT: &str = "LowPassFilterEffect";
+static LOG_ENVIRONMENT: &str = "DelayEffect";
 
 pub struct DelayEffect {
   mix: Arc<AtomicU16>,
@@ -16,7 +16,7 @@ pub struct DelayEffect {
 }
 
 impl DelayEffect {
-  pub fn new(mix: u16, delay_value: u16) -> Self
+  pub fn new(mix: u16, delay_value: u16, sample_rate: f64) -> Self
   where
     Self: Sized
   {
@@ -30,9 +30,12 @@ impl DelayEffect {
       2.0
     );
 
+    let mut delay = delay(delay_value);
+    delay.set_sample_rate(sample_rate);
+
     Self {
       mix: Arc::new(AtomicU16::new(mix)),
-      delay: delay(delay_value),
+      delay,
     }
   }
 }
@@ -65,9 +68,7 @@ impl AudioEffect for DelayEffect {
       "mix" => &self.mix,
       _ => return Err(Error::new("Parameter not found")),
     };
-    Ok(Arc::new(EffectInputObserver {
-      value_storage: Arc::clone(value),
-    }))
+    Ok(Arc::new(EffectInputObserver::new(value)))
   }
 
   fn get_type(&self) -> &str {
