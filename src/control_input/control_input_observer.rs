@@ -7,4 +7,9 @@ pub struct ControlChange {
 
 pub trait ControlInputObserver: Send + Sync {
     fn update(&self, cc: &ControlChange);
+
+    /// Returning `false` lets the observable drop this observer, e.g. once the effect it controls is gone.
+    fn is_active(&self) -> bool {
+        true
+    }
 }

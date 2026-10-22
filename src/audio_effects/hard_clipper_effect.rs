@@ -1,4 +1,4 @@
-﻿use std::sync::Arc;
+use std::sync::Arc;
 use crate::audio_effects::audio_effect::AudioEffect;
 use crate::control_input::ControlInputObserver;
 use crate::error::Error;
@@ -24,11 +24,11 @@ impl AudioEffect for HardClipperEffect {
     sample.clamp(self.min, self.max)
   }
 
-  fn set_value(&mut self, key: &str, value: u16) -> Result<(), Error> {
+  fn set_value(&mut self, _key: &str, _value: u16) -> Result<(), Error> {
     Err(Error::new("Unknown parameter"))
   }
 
-  fn get_control_observer(&mut self, key: &str) -> Result<Arc<dyn ControlInputObserver>, Error> {
+  fn get_control_observer(&mut self, _key: &str) -> Result<Arc<dyn ControlInputObserver>, Error> {
     Err(Error::new("Parameter not found"))
   }
 
