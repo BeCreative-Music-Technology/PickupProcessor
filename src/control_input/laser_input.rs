@@ -1,17 +1,15 @@
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use rppal::gpio::{Gpio, InputPin, Level, OutputPin};
-use rppal::hal::Delay;
-use rppal::i2c::I2c;
-use vl53l0x_simple::Vl53l0x;
 use crate::control_input::{ControlChange, ControlInput, ObservableControlInput};
 use crate::logger;
 
 ///
-/// One laser string. All strings share the same sensors, which are read on a single thread
+/// One laser string. All strings share the same ultrasonic sensor, which is read on its own thread
 /// started by `LaserStringInput::create_all()`.
-/// While a string's beam is broken, the distance measured by the ToF sensors is sent as its value.
+/// While a string's beam is broken, the distance measured by the ultrasonic sensor is sent as its value.
 ///
 pub struct LaserStringInput {
   observable: Arc<ObservableControlInput>,
@@ -55,22 +53,80 @@ impl LaserStringInput {
   }
 }
 
+///
+/// HC-SR04 style ultrasonic sensor: a 10 us pulse on TRIG starts a measurement, after which ECHO stays high
+/// for as long as the sound takes to travel to the object and back.
+///
+struct Ultrasonic {
+  trigger_pin: OutputPin,
+  echo_pin: InputPin,
+}
+
+impl Ultrasonic {
+  const TRIGGER_PULSE: Duration = Duration::from_micros(10);
+  // The echo line goes high a few hundred microseconds after the trigger; give up if it takes much longer
+  const ECHO_START_TIMEOUT: Duration = Duration::from_millis(10);
+  // Round trip for LaserSensors::VALID_LIMIT (2 m) is ~11.7 ms; a longer echo is treated as no reading
+  const ECHO_END_TIMEOUT: Duration = Duration::from_millis(12);
+  // Speed of sound in mm/s at ~20 degrees Celsius
+  const SPEED_OF_SOUND: f32 = 343_000.0;
+
+  ///
+  /// Measures the distance to the nearest object in mm, or `None` when there is no echo.
+  ///
+  fn measure(&mut self) -> Option<u16> {
+    self.trigger_pin.set_high();
+    Self::spin(Self::TRIGGER_PULSE);
+    self.trigger_pin.set_low();
+
+    let echo_start = self.wait_for(Level::High, Self::ECHO_START_TIMEOUT)?;
+    let echo_end = self.wait_for(Level::Low, Self::ECHO_END_TIMEOUT)?;
+
+    Some(Self::echo_to_distance(echo_end.duration_since(echo_start)))
+  }
+
+  /// Busy-waits for the echo pin to reach `level`; thread::sleep is far too coarse for microsecond pulses.
+  fn wait_for(&self, level: Level, timeout: Duration) -> Option<Instant> {
+    let start = Instant::now();
+    while self.echo_pin.read() != level {
+      if start.elapsed() > timeout {
+        return None;
+      }
+      std::hint::spin_loop();
+    }
+    Some(Instant::now())
+  }
+
+  fn spin(duration: Duration) {
+    let start = Instant::now();
+    while start.elapsed() < duration {
+      std::hint::spin_loop();
+    }
+  }
+
+  /// The sound travels to the object and back, so the distance is half of what the pulse length suggests.
+  fn echo_to_distance(echo: Duration) -> u16 {
+    (echo.as_secs_f32() * Self::SPEED_OF_SOUND / 2.0).round().min(u16::MAX as f32) as u16
+  }
+}
+
 struct LaserSensors {
-  tof_sensors: [Vl53l0x<I2c, OutputPin>; 2],
-  // Latest valid reading of each ToF sensor in mm; the sensors only produce a new one every measurement period
-  distances: [Option<u16>; 2],
+  // Latest valid reading of the ultrasonic sensor in mm, or NO_READING; written by the sensor thread
+  distance: Arc<AtomicU16>,
   photosensor_read_pin: InputPin,
   photosensor_mux_pins: (OutputPin, OutputPin),
 }
 
 impl LaserSensors {
-  const TOF_X_SHUT_1: u8 = 8;
-  const TOF_X_SHUT_2: u8 = 7;
-  const TOF_ADDRESSES: [u8; 2] = [0x30, 0x31];
-  const TOF_MIN_DISTANCE: u16 = 50;
-  const TOF_MAX_DISTANCE: u16 = 300;
-  // The VL53L0X reports ~8190 mm when nothing is in range; anything beyond this is treated as no reading
-  const TOF_VALID_LIMIT: u16 = 2000;
+  const ULTRASONIC_TRIGGER_PIN: u8 = 17;
+  const ULTRASONIC_ECHO_PIN: u8 = 27;
+  // HC-SR04 datasheet asks for at least 60 ms between measurements so echoes of the previous one die out
+  const ULTRASONIC_INTERVAL: Duration = Duration::from_millis(60);
+  const NO_READING: u16 = u16::MAX;
+  const MIN_DISTANCE: u16 = 50;
+  const MAX_DISTANCE: u16 = 300;
+  // Anything beyond this is treated as no reading
+  const VALID_LIMIT: u16 = 2000;
   const PHOTOSENSOR_READ_PIN: u8 = 10;
   const PHOTOSENSOR_MUX_S0_PIN: u8 = 11;
   const PHOTOSENSOR_MUX_S1_PIN: u8 = 9;
@@ -90,19 +146,21 @@ impl LaserSensors {
         return;
       }
     };
-    logger::info(LOG_ENVIRONMENT, "ToF sensors and photosensors initialized");
+    logger::info(LOG_ENVIRONMENT, "ultrasonic sensor and photosensors initialized");
 
     let mut beam_broken = vec![false; strings.len()];
     let mut last_values: Vec<Option<u16>> = vec![None; strings.len()];
 
     loop {
-      sensors.poll_tof_sensors();
-
       for (index, (laser_id, observable)) in strings.iter().enumerate() {
         let broken = sensors.read_photosensor(index) == Level::Low;
         if broken != beam_broken[index] {
           beam_broken[index] = broken;
-          logger::log(LOG_ENVIRONMENT, &format!("{} {}", laser_id, if broken { "touched" } else { "released" }));
+          let distance = match sensors.distance() {
+            Some(mm) => format!("{} mm", mm),
+            None => "no reading".to_string(),
+          };
+          logger::log(LOG_ENVIRONMENT, &format!("{} {} (distance: {})", laser_id, if broken { "touched" } else { "released" }, distance));
         }
         if !broken {
           continue;
@@ -123,55 +181,50 @@ impl LaserSensors {
   fn init() -> Result<Self, String> {
     let gpio = Gpio::new().map_err(|e| format!("could not open GPIO: {}", e))?;
     let output_pin = |pin: u8| gpio.get(pin)
-      .map(|pin| pin.into_output())
+      .map(|pin| pin.into_output_low())
       .map_err(|e| format!("could not claim GPIO {}: {}", pin, e));
 
-    // Hold both ToF sensors in reset, then bring them up one at a time so each can get its own I2C address
-    let mut x_shut_pins = [output_pin(Self::TOF_X_SHUT_1)?, output_pin(Self::TOF_X_SHUT_2)?];
-    x_shut_pins.iter_mut().for_each(|pin| pin.set_low());
-    thread::sleep(Duration::from_millis(100));
-
-    let mut delay = Delay::new();
-    let [x_shut_1, x_shut_2] = x_shut_pins;
-    let mut tof_sensor = |x_shut: OutputPin, index: usize| -> Result<Vl53l0x<I2c, OutputPin>, String> {
-      let i2c = I2c::new().map_err(|e| format!("could not open I2C (is it enabled in config.txt?): {}", e))?;
-      Vl53l0x::new(i2c, x_shut, Self::TOF_ADDRESSES[index], &mut delay)
-        .map_err(|e| format!("ToF sensor {} did not initialize: {:?}", index + 1, e))
+    let ultrasonic = Ultrasonic {
+      trigger_pin: output_pin(Self::ULTRASONIC_TRIGGER_PIN)?,
+      echo_pin: gpio.get(Self::ULTRASONIC_ECHO_PIN)
+        .map(|pin| pin.into_input_pulldown())
+        .map_err(|e| format!("could not claim GPIO {}: {}", Self::ULTRASONIC_ECHO_PIN, e))?,
     };
-    let tof_sensors = [tof_sensor(x_shut_1, 0)?, tof_sensor(x_shut_2, 1)?];
 
     let photosensor_read_pin = gpio.get(Self::PHOTOSENSOR_READ_PIN)
       .map(|pin| pin.into_input_pulldown())
       .map_err(|e| format!("could not claim GPIO {}: {}", Self::PHOTOSENSOR_READ_PIN, e))?;
     let photosensor_mux_pins = (output_pin(Self::PHOTOSENSOR_MUX_S0_PIN)?, output_pin(Self::PHOTOSENSOR_MUX_S1_PIN)?);
 
-    Ok(Self { tof_sensors, distances: [None; 2], photosensor_read_pin, photosensor_mux_pins })
+    // Start measuring only once every pin was claimed, so a failed init does not leave a thread behind
+    let distance = Arc::new(AtomicU16::new(Self::NO_READING));
+    Self::spawn_ultrasonic_thread(ultrasonic, distance.clone());
+
+    Ok(Self { distance, photosensor_read_pin, photosensor_mux_pins })
   }
 
   ///
-  /// Stores new ToF readings when the sensors have finished a measurement.
+  /// Measuring blocks for up to a few milliseconds, so it runs on its own thread to keep the
+  /// photosensor polling responsive.
   ///
-  fn poll_tof_sensors(&mut self) {
-    for (index, tof) in self.tof_sensors.iter_mut().enumerate() {
-      match tof.try_read() {
-        Ok(Some(distance)) => {
-          self.distances[index] = (distance < Self::TOF_VALID_LIMIT).then_some(distance);
-        }
-        Ok(None) => {} // Still measuring, keep the previous reading
-        Err(e) => logger::error_str(LOG_ENVIRONMENT, &format!("ToF sensor {} read error: {:?}", index + 1, e)),
-      }
-    }
+  fn spawn_ultrasonic_thread(mut ultrasonic: Ultrasonic, distance: Arc<AtomicU16>) {
+    thread::spawn(move || loop {
+      let reading = ultrasonic.measure()
+        .filter(|&d| d < Self::VALID_LIMIT)
+        .unwrap_or(Self::NO_READING);
+      distance.store(reading, Ordering::Relaxed);
+      thread::sleep(Self::ULTRASONIC_INTERVAL);
+    });
   }
 
   ///
-  /// Average distance of the sensors that currently see something, in mm.
+  /// Latest distance in mm, if the sensor currently sees something.
   ///
   fn distance(&self) -> Option<u16> {
-    let valid: Vec<u32> = self.distances.iter().flatten().map(|&d| d as u32).collect();
-    if valid.is_empty() {
-      return None;
+    match self.distance.load(Ordering::Relaxed) {
+      Self::NO_READING => None,
+      distance => Some(distance),
     }
-    Some((valid.iter().sum::<u32>() / valid.len() as u32) as u16)
   }
 
   fn read_photosensor(&mut self, index: usize) -> Level {
@@ -187,11 +240,11 @@ impl LaserSensors {
   }
 
   ///
-  /// Maps a distance in mm onto the full control range: `TOF_MIN_DISTANCE` is 0, `TOF_MAX_DISTANCE` is `u16::MAX`.
+  /// Maps a distance in mm onto the full control range: `MIN_DISTANCE` is 0, `MAX_DISTANCE` is `u16::MAX`.
   ///
   fn to_control_value(distance: u16) -> u16 {
-    let clamped = distance.clamp(Self::TOF_MIN_DISTANCE, Self::TOF_MAX_DISTANCE);
-    let normalized = (clamped - Self::TOF_MIN_DISTANCE) as f32 / (Self::TOF_MAX_DISTANCE - Self::TOF_MIN_DISTANCE) as f32;
+    let clamped = distance.clamp(Self::MIN_DISTANCE, Self::MAX_DISTANCE);
+    let normalized = (clamped - Self::MIN_DISTANCE) as f32 / (Self::MAX_DISTANCE - Self::MIN_DISTANCE) as f32;
     (normalized * u16::MAX as f32).round() as u16
   }
 }
@@ -207,5 +260,12 @@ mod tests {
     assert_eq!(LaserSensors::to_control_value(175), 32768);
     assert_eq!(LaserSensors::to_control_value(300), u16::MAX);
     assert_eq!(LaserSensors::to_control_value(8190), u16::MAX);
+  }
+
+  #[test]
+  fn echo_length_converts_to_distance() {
+    // 1 m of travel each way at 343 m/s
+    assert_eq!(Ultrasonic::echo_to_distance(Duration::from_micros(5831)), 1000);
+    assert_eq!(Ultrasonic::echo_to_distance(Duration::from_micros(0)), 0);
   }
 }
