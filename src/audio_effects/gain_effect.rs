@@ -2,8 +2,7 @@
 use std::sync::atomic::{AtomicU16, Ordering};
 use crate::audio_effects::audio_effect::AudioEffect;
 use crate::audio_effects::effect_helper;
-use crate::audio_effects::effect_input_observer::EffectInputObserver;
-use crate::control_input::{ControlInputObserver};
+use crate::audio_effects::effect_helper::Smoothed;
 use crate::error::Error;
 use crate::logger;
 
@@ -12,21 +11,26 @@ pub struct GainEffect {
   gain_value: Arc<AtomicU16>,
   // Cached (raw value, linear factor) so `powf` only runs when the gain changes
   gain_cache: (u16, f32),
+  smoothed_gain: Smoothed,
+  smoothed_mix: Smoothed,
 }
 
 static LOG_ENVIRONMENT: &str = "GainEffect";
 
 impl GainEffect {
-  pub fn new(mix: u16, gain: u16) -> Self
+  pub fn new(mix: u16, gain: u16, sample_rate: f64) -> Self
   where
     Self: Sized
   {
     logger::info(LOG_ENVIRONMENT, "effect created");
 
+    let gain_factor = Self::db_to_gain(Self::parse_gain(gain));
     Self {
       mix: Arc::new(AtomicU16::new(mix)),
       gain_value: Arc::new(AtomicU16::new(gain)), // 16384 // 0 dB
-      gain_cache: (gain, Self::db_to_gain(Self::parse_gain(gain))),
+      gain_cache: (gain, gain_factor),
+      smoothed_gain: Smoothed::new(gain_factor, sample_rate),
+      smoothed_mix: Smoothed::new(Self::parse_mix(mix), sample_rate),
     }
   }
 
@@ -36,6 +40,10 @@ impl GainEffect {
 
   fn parse_gain(gain: u16) -> f32 {
     effect_helper::map(gain, u16::MIN, u16::MAX, -6.0, 18.0) // -6 dB -> 18 dB
+  }
+
+  fn parse_mix(mix: u16) -> f32 {
+    effect_helper::map(mix, u16::MIN, u16::MAX, 0.0, 1.0)
   }
 }
 
@@ -53,15 +61,10 @@ impl AudioEffect for GainEffect {
       self.gain_cache = (gain, Self::db_to_gain(Self::parse_gain(gain)));
     }
 
-    let mix = effect_helper::map(
-      self.mix.load(Ordering::Relaxed),
-      u16::MIN,
-      u16::MAX,
-      0.0,
-      1.0
-    );
+    let gain_factor = self.smoothed_gain.next(self.gain_cache.1);
+    let mix = self.smoothed_mix.next(Self::parse_mix(self.mix.load(Ordering::Relaxed)));
 
-    let processed = sample * self.gain_cache.1;
+    let processed = sample * gain_factor;
     effect_helper::mix(sample, processed, mix)
   }
 
@@ -74,23 +77,17 @@ impl AudioEffect for GainEffect {
   /// `value` takes an 'u16' with the new value.
   ///
   fn set_value(&mut self, key: &str, value: u16) -> Result<(), Error> {
-    match key {
-      "mix" => self.mix.store(value, Ordering::Relaxed),
-      "gain" => self.gain_value.store(value, Ordering::Relaxed),
-      _ => return Err(Error::new("Unknown parameter"))
-    };
+    self.parameter(key)?.store(value, Ordering::Relaxed);
     logger::info(LOG_ENVIRONMENT, &format!("set parameter {} to {}", key, value));
     Ok(())
   }
 
-  /// The effect remains completely passive, simply producing an observer when asked
-  fn get_control_observer(&mut self, key: &str) -> Result<Arc<dyn ControlInputObserver>, Error> {
-    let value = match key {
-      "mix" => &self.mix,
-      "gain" => &self.gain_value,
-      _ => return Err(Error::new("Parameter not found")),
-    };
-    Ok(Arc::new(EffectInputObserver::new(value)))
+  fn parameter(&self, key: &str) -> Result<Arc<AtomicU16>, Error> {
+    match key {
+      "mix" => Ok(self.mix.clone()),
+      "gain" => Ok(self.gain_value.clone()),
+      _ => Err(Error::new("Parameter not found")),
+    }
   }
 
   fn get_type(&self) -> &str {

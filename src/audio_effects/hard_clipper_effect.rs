@@ -1,6 +1,6 @@
 use std::sync::Arc;
+use std::sync::atomic::AtomicU16;
 use crate::audio_effects::audio_effect::AudioEffect;
-use crate::control_input::ControlInputObserver;
 use crate::error::Error;
 use crate::logger;
 
@@ -28,7 +28,7 @@ impl AudioEffect for HardClipperEffect {
     Err(Error::new("Unknown parameter"))
   }
 
-  fn get_control_observer(&mut self, _key: &str) -> Result<Arc<dyn ControlInputObserver>, Error> {
+  fn parameter(&self, _key: &str) -> Result<Arc<AtomicU16>, Error> {
     Err(Error::new("Parameter not found"))
   }
 

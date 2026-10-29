@@ -15,6 +15,7 @@ mod audio_bus;
 mod audio_output;
 mod auxiliary_output;
 mod control_input;
+mod control_feedback;
 mod logger;
 pub mod external_connection;
 

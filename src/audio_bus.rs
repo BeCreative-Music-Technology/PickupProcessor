@@ -1,10 +1,11 @@
-﻿use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU8, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 use rtrb::{Consumer, RingBuffer};
 use crate::audio_effects::audio_effect::AudioEffect;
+use crate::audio_effects::effect_slot::EffectSlot;
 use crate::audio_effects::hard_clipper_effect::HardClipperEffect;
 use crate::audio_output::AudioOutput;
 use crate::auxiliary_output::AuxiliaryOutput;
@@ -14,7 +15,7 @@ use crate::logger;
 pub struct AudioBus {
   enabled: Arc<AtomicBool>,
   audio_output: Box<dyn AudioOutput>,
-  effects: Arc<Mutex<Vec<Box<dyn AudioEffect>>>>,
+  effects: Arc<Mutex<Vec<EffectSlot>>>,
   bus_id: String,
   thread: JoinHandle<()>,
 }
@@ -46,12 +47,15 @@ impl AudioBus {
   /// `main_volume` takes a shared `u16` volume (`0` is silent, `u16::MAX` is unity gain)
   /// that is applied after the effect chain.
   ///
+  /// `sample_rate` takes the sample rate in Hz, used to time effects switching on and off.
+  ///
   pub fn new(
     mut consumer: Consumer<f32>,
     audio_output_name: &str,
     enabled: bool,
     buffer_length: usize,
     main_volume: Arc<AtomicU16>,
+    sample_rate: usize,
   ) -> Result<Self, Error> {
     let bus_id = format!("bus_{}", BUS_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed));
 
@@ -62,7 +66,8 @@ impl AudioBus {
     let audio_output = AuxiliaryOutput::open_stream(audio_output_name, output_consumer)?;
 
     // Clone pointers
-    let effects = Arc::new(Mutex::new(Vec::<Box<dyn AudioEffect>>::new()));
+    let effects = Arc::new(Mutex::new(Vec::<EffectSlot>::new()));
+    let fade_step = EffectSlot::fade_step(sample_rate);
     let thread_effects = effects.clone();
 
     let atomic_enabled = Arc::new(AtomicBool::new(enabled));
@@ -94,7 +99,7 @@ impl AudioBus {
         output.fill_from_iter(input.into_iter().map(|sample| {
           let processed = effects
             .iter_mut()
-            .fold(sample, |audio, effect| effect.process_chunk(audio));
+            .fold(sample, |audio, slot| slot.process(audio, fade_step));
           hard_clipper.process_chunk(processed * volume)
         }));
       }
@@ -116,15 +121,15 @@ impl AudioBus {
   ///
   pub fn add_effect(&mut self, effect: Box<dyn AudioEffect>) {
     logger::info(LOG_ENVIRONMENT, &format!("{} added to {}", effect.get_type(), self.bus_id));
-    self.effects.lock().unwrap().push(effect);
+    self.effects.lock().unwrap().push(EffectSlot::new(effect, true));
   }
 
   ///
   /// Replaces the whole effect chain at once, so the audio thread never processes a half-built chain.
   /// The old effects are dropped after the lock is released to keep the audio thread blocked as short as possible.
   ///
-  pub fn set_effects(&mut self, effects: Vec<Box<dyn AudioEffect>>) {
-    let types: Vec<&str> = effects.iter().map(|effect| effect.get_type()).collect();
+  pub fn set_effects(&mut self, effects: Vec<EffectSlot>) {
+    let types: Vec<&str> = effects.iter().map(|slot| slot.effect().get_type()).collect();
     logger::info(LOG_ENVIRONMENT, &format!("{} effect chain set to [{}]", self.bus_id, types.join(", ")));
 
     let old_effects = std::mem::replace(&mut *self.effects.lock().unwrap(), effects);
@@ -134,7 +139,7 @@ impl AudioBus {
   ///
   /// Retrieves a copy of all effects from the effect chain
   ///
-  pub fn effects(&self) -> Arc<Mutex<Vec<Box<dyn AudioEffect>>>> {
+  pub fn effects(&self) -> Arc<Mutex<Vec<EffectSlot>>> {
     self.effects.clone()
   }
 
@@ -167,7 +172,7 @@ impl AudioBus {
     let mut effects = self.effects.lock().unwrap();
 
     match effects.get_mut(index) {
-      Some(effect) => Ok(f(effect.as_mut())),
+      Some(slot) => Ok(f(slot.effect_mut())),
       None => Err(Error::new("Index out of bounds")),
     }
   }

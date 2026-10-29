@@ -2,6 +2,19 @@
 
 ## Unreleased: panel integration and laser strings
 
+### Bindings: more than "control drives parameter"
+- Every binding (a parameter entry with an `input_control_id`) accepts optional fields:
+  - `range_min` / `range_max`: the part of the parameter the control sweeps; min above max reverses it.
+  - `curve`: `linear`, `exponential` or `logarithmic`.
+  - `release`: `hold` (default) or `return` to the panel's value when a laser string is released.
+- The key `"enabled"` binds a laser to switching the effect on and off, with `mode` `momentary` (on while touched) or `toggle`. Effects fade in and out over 10 ms, so switching does not click.
+- Mix, gain and cutoff are smoothed, so laser and rotary moves no longer step audibly.
+- One effect may have several bindings, including several controls on the same parameter.
+
+### Live control feedback
+- The engine now also sends to the panel, over the same connection: a `hello` message with every control input on connect, then `control_state` messages (about 30 per second, only changed controls) with `value`, `touched` and `online`.
+- Laser strings report touch and release, and show as offline when their sensors could not be initialized.
+
 ### Panel communication (VCSGP)
 - The listener no longer stops when a client disconnects abruptly or sends invalid data; each client gets its own thread.
 - New optional fields, all already sent by the QUTI panel:

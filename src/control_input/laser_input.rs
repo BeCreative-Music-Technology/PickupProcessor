@@ -23,6 +23,10 @@ impl ControlInput for LaserStringInput {
     &self.laser_id
   }
 
+  fn kind(&self) -> &str {
+    "laser"
+  }
+
   fn observable(&self) -> Arc<ObservableControlInput> {
     self.observable.clone()
   }
@@ -36,9 +40,11 @@ impl LaserStringInput {
   ///
   pub fn create_all() -> Vec<LaserStringInput> {
     let strings: Vec<LaserStringInput> = (0..Self::STRING_COUNT)
-      .map(|index| LaserStringInput {
-        observable: Arc::new(ObservableControlInput::new()),
-        laser_id: format!("laser_{}", index),
+      .map(|index| {
+        // Offline until the sensors are initialized, so the panel can tell when they are not working
+        let observable = Arc::new(ObservableControlInput::new());
+        observable.set_online(false);
+        LaserStringInput { observable, laser_id: format!("laser_{}", index) }
       })
       .collect();
 
@@ -147,6 +153,7 @@ impl LaserSensors {
       }
     };
     logger::info(LOG_ENVIRONMENT, "ultrasonic sensor and photosensors initialized");
+    strings.iter().for_each(|(_, observable)| observable.set_online(true));
 
     let mut beam_broken = vec![false; strings.len()];
     let mut last_values: Vec<Option<u16>> = vec![None; strings.len()];
@@ -161,6 +168,10 @@ impl LaserSensors {
             None => "no reading".to_string(),
           };
           logger::log(LOG_ENVIRONMENT, &format!("{} {} (distance: {})", laser_id, if broken { "touched" } else { "released" }, distance));
+
+          // A binding may return to its base value on release, so resend the first reading of every touch
+          last_values[index] = None;
+          observable.notify_touch(broken);
         }
         if !broken {
           continue;

@@ -7,7 +7,7 @@ pub mod laser_input;
 pub use control_input_observer::{ControlChange, ControlInputObserver};
 pub use control_input::{ControlInput, RotaryInput};
 pub use laser_input::LaserStringInput;
-pub use observable_control_input::ObservableControlInput;
+pub use observable_control_input::{ControlState, ObservableControlInput};
 
 #[cfg(test)]
 mod tests {

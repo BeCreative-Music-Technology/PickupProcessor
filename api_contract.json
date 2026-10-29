@@ -13,7 +13,11 @@
             {
               "key": "frequency",
               "value": 3273,
-              "input_control_id": "rotary_0"
+              "input_control_id": "rotary_0",
+              "range_min": 300,
+              "range_max": 9800,
+              "curve": "exponential",
+              "release": "hold"
             },
             {
               "key": "q_factor",
@@ -64,6 +68,12 @@
               "key": "mix",
               "value": 19661,
               "input_control_id": "rotary_0"
+            },
+            {
+              "key": "enabled",
+              "value": 65535,
+              "input_control_id": "laser_1",
+              "mode": "momentary"
             }
           ]
         }
@@ -86,7 +96,8 @@
             {
               "key": "mix",
               "value": 32767,
-              "input_control_id": "laser_2"
+              "input_control_id": "laser_2",
+              "release": "return"
             }
           ]
         }

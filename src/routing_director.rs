@@ -1,4 +1,4 @@
-﻿use std::sync::Arc;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU16, Ordering};
 use rtrb::{Consumer, Producer, RingBuffer};
 use crate::audio_bus::AudioBus;
@@ -108,6 +108,7 @@ impl RoutingDirector {
       true,
       ring_buffer_length,
       Arc::clone(&self.main_volume),
+      self.sample_rate(),
     )?;
 
     self.audio_buses.push((

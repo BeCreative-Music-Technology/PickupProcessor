@@ -9,6 +9,8 @@ use super::observable_control_input::ObservableControlInput;
 
 pub trait ControlInput: Send + Sync {
     fn id(&self) -> &str;
+    /// Kind of hardware, e.g. `"rotary"` or `"laser"`, so the panel knows what the control can do.
+    fn kind(&self) -> &str;
     fn observable(&self) -> Arc<ObservableControlInput>;
 }
 
@@ -33,8 +35,12 @@ impl RotaryInput {
         let clk_pin = gpio.get(Self::GPIO_CLK).expect("Failed to get GPIO CLK pin").into_input_pullup();
         let dt_pin = gpio.get(Self::GPIO_DT).expect("Failed to get GPIO DT pin").into_input_pullup();
 
+        // Publish the starting position, so the panel can show it before the encoder is turned
+        let initial_value = u16::MAX / 2;
+        observable.notify(&ControlChange { control_id: rotary_id.clone(), value: initial_value });
+
         thread::spawn(move || {
-            let mut encoder_value: u16 = u16::MAX / 2;
+            let mut encoder_value: u16 = initial_value;
             let mut last_clk_level = clk_pin.read();
             loop {
                 let current_clk_level = clk_pin.read();
@@ -67,6 +73,10 @@ impl RotaryInput {
 impl ControlInput for RotaryInput {
     fn id(&self) -> &str {
         self.rotary_id.as_str()
+    }
+
+    fn kind(&self) -> &str {
+        "rotary"
     }
 
     fn observable(&self) -> Arc<ObservableControlInput> {
