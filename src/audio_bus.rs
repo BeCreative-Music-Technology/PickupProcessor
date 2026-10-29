@@ -1,9 +1,11 @@
-﻿use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU8, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
+use std::time::Duration;
 use rtrb::{Consumer, RingBuffer};
 use crate::audio_effects::audio_effect::AudioEffect;
+use crate::audio_effects::effect_slot::EffectSlot;
 use crate::audio_effects::hard_clipper_effect::HardClipperEffect;
 use crate::audio_output::AudioOutput;
 use crate::auxiliary_output::AuxiliaryOutput;
@@ -13,13 +15,16 @@ use crate::logger;
 pub struct AudioBus {
   enabled: Arc<AtomicBool>,
   audio_output: Box<dyn AudioOutput>,
-  effects: Arc<Mutex<Vec<Box<dyn AudioEffect>>>>,
+  effects: Arc<Mutex<Vec<EffectSlot>>>,
   bus_id: String,
   thread: JoinHandle<()>,
 }
 
 static BUS_INCREMENTAL_ID: AtomicU8 = AtomicU8::new(0);
 static LOG_ENVIRONMENT: &str = "AudioBus";
+
+/// How long the processing thread sleeps when there is no audio to process.
+pub const IDLE_SLEEP: Duration = Duration::from_micros(250);
 
 impl AudioBus {
   ///
@@ -39,23 +44,30 @@ impl AudioBus {
   ///
   /// `buffer_length` takes a `usize` which sets the buffer size of the internal ring buffer.
   ///
-  pub fn new(mut consumer: Consumer<f32>, audio_output_name: &str, enabled: bool, buffer_length: usize) -> Result<Self, Error> {
+  /// `main_volume` takes a shared `u16` volume (`0` is silent, `u16::MAX` is unity gain)
+  /// that is applied after the effect chain.
+  ///
+  /// `sample_rate` takes the sample rate in Hz, used to time effects switching on and off.
+  ///
+  pub fn new(
+    mut consumer: Consumer<f32>,
+    audio_output_name: &str,
+    enabled: bool,
+    buffer_length: usize,
+    main_volume: Arc<AtomicU16>,
+    sample_rate: usize,
+  ) -> Result<Self, Error> {
     let bus_id = format!("bus_{}", BUS_INCREMENTAL_ID.fetch_add(1, Ordering::Relaxed));
 
     // Create ring buffer for transferring audio to output instance
     let (mut output_producer, output_consumer) = RingBuffer::<f32>::new(buffer_length);
 
     // Create new instance of AuxiliaryOutput stream
-    let audio_output = match AuxiliaryOutput::open_stream(
-      audio_output_name,
-      output_consumer
-    ) {
-      Ok(audio_output) => audio_output,
-      Err(e) => return Err(e),
-    };
+    let audio_output = AuxiliaryOutput::open_stream(audio_output_name, output_consumer)?;
 
     // Clone pointers
-    let effects = Arc::new(Mutex::new(Vec::<Box<dyn AudioEffect>>::new()));
+    let effects = Arc::new(Mutex::new(Vec::<EffectSlot>::new()));
+    let fade_step = EffectSlot::fade_step(sample_rate);
     let thread_effects = effects.clone();
 
     let atomic_enabled = Arc::new(AtomicBool::new(enabled));
@@ -66,26 +78,34 @@ impl AudioBus {
       let mut hard_clipper = HardClipperEffect::new(-1.0, 1.0);
 
       loop {
-        if !thread_enabled.load(Ordering::Relaxed) {
+        if !thread_enabled.load(Ordering::Acquire) {
           thread::park();
-        };
-
-        let incoming_audio = match consumer.pop() {
-          Ok(incoming_audio) => incoming_audio,
-          Err(_) => continue,
-        };
-        let mut processed_audio = incoming_audio.clone();
-        for effect in thread_effects.lock().unwrap().iter_mut() {
-          processed_audio = effect
-            .process_chunk(processed_audio)
+          continue;
         }
-        processed_audio = hard_clipper.process_chunk(processed_audio);
 
-        _ = output_producer.push(processed_audio);
+        // Process everything that is available in one go, so the effects lock is taken once per chunk
+        let available = consumer.slots().min(output_producer.slots());
+        if available == 0 {
+          thread::sleep(IDLE_SLEEP);
+          continue;
+        }
+
+        let (Ok(input), Ok(output)) = (consumer.read_chunk(available), output_producer.write_chunk_uninit(available)) else {
+          continue;
+        };
+
+        let volume = main_volume.load(Ordering::Relaxed) as f32 / u16::MAX as f32;
+        let mut effects = thread_effects.lock().unwrap();
+        output.fill_from_iter(input.into_iter().map(|sample| {
+          let processed = effects
+            .iter_mut()
+            .fold(sample, |audio, slot| slot.process(audio, fade_step));
+          hard_clipper.process_chunk(processed * volume)
+        }));
       }
     });
 
-    logger::info(LOG_ENVIRONMENT, &format!("{} created", &bus_id));
+    logger::info(LOG_ENVIRONMENT, &format!("{} created", bus_id));
 
     Ok(Self {
       enabled: atomic_enabled,
@@ -101,13 +121,25 @@ impl AudioBus {
   ///
   pub fn add_effect(&mut self, effect: Box<dyn AudioEffect>) {
     logger::info(LOG_ENVIRONMENT, &format!("{} added to {}", effect.get_type(), self.bus_id));
-    self.effects.lock().unwrap().push(effect);
+    self.effects.lock().unwrap().push(EffectSlot::new(effect, true));
+  }
+
+  ///
+  /// Replaces the whole effect chain at once, so the audio thread never processes a half-built chain.
+  /// The old effects are dropped after the lock is released to keep the audio thread blocked as short as possible.
+  ///
+  pub fn set_effects(&mut self, effects: Vec<EffectSlot>) {
+    let types: Vec<&str> = effects.iter().map(|slot| slot.effect().get_type()).collect();
+    logger::info(LOG_ENVIRONMENT, &format!("{} effect chain set to [{}]", self.bus_id, types.join(", ")));
+
+    let old_effects = std::mem::replace(&mut *self.effects.lock().unwrap(), effects);
+    drop(old_effects);
   }
 
   ///
   /// Retrieves a copy of all effects from the effect chain
   ///
-  pub fn effects(&self) -> Arc<Mutex<Vec<Box<dyn AudioEffect>>>> {
+  pub fn effects(&self) -> Arc<Mutex<Vec<EffectSlot>>> {
     self.effects.clone()
   }
 
@@ -140,7 +172,7 @@ impl AudioBus {
     let mut effects = self.effects.lock().unwrap();
 
     match effects.get_mut(index) {
-      Some(effect) => Ok(f(effect.as_mut())),
+      Some(slot) => Ok(f(slot.effect_mut())),
       None => Err(Error::new("Index out of bounds")),
     }
   }
@@ -149,17 +181,22 @@ impl AudioBus {
   /// Enables the `AudioBus` so it starts processing the incoming data.
   ///
   pub fn enable(&mut self) {
-    logger::info(LOG_ENVIRONMENT, &format!("{} enabled", &self.bus_id));
+    if self.enabled.swap(true, Ordering::Release) {
+      return;
+    }
+    logger::info(LOG_ENVIRONMENT, &format!("{} enabled", self.bus_id));
+    // Unpark after storing the flag, otherwise the thread can wake, still see `false` and park forever
     self.thread.thread().unpark();
-    self.enabled.store(true, Ordering::Relaxed);
   }
 
   ///
   /// Disables the `AudioBus` so it stops processing the incoming data.
   ///
   pub fn disable(&mut self) {
-    logger::info(LOG_ENVIRONMENT, &format!("{} disabled", &self.bus_id));
-    self.enabled.store(false, Ordering::Relaxed);
+    if !self.enabled.swap(false, Ordering::Release) {
+      return;
+    }
+    logger::info(LOG_ENVIRONMENT, &format!("{} disabled", self.bus_id));
   }
 
   ///

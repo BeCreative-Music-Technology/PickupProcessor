@@ -1,11 +1,13 @@
 pub mod control_input_observer;
 pub mod control_input;
 pub mod observable_control_input;
+pub mod laser_input;
 
 // Re-export items so other packages can use `use crate::control_input::ControlChange;`
 pub use control_input_observer::{ControlChange, ControlInputObserver};
 pub use control_input::{ControlInput, RotaryInput};
-pub use observable_control_input::ObservableControlInput;
+pub use laser_input::LaserStringInput;
+pub use observable_control_input::{ControlState, ObservableControlInput};
 
 #[cfg(test)]
 mod tests {

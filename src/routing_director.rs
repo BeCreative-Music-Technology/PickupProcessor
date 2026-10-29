@@ -1,4 +1,6 @@
-﻿use rtrb::{Consumer, Producer, RingBuffer};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU16, Ordering};
+use rtrb::{Consumer, Producer, RingBuffer};
 use crate::audio_bus::AudioBus;
 use crate::audio_input::AudioInput;
 use crate::auxiliary_input::AuxiliaryInput;
@@ -7,10 +9,14 @@ use crate::logger;
 
 static LOG_ENVIRONMENT: &str = "RoutingDirector";
 
+/// Ring buffers hold this many JACK periods, so a late consumer does not immediately cause dropouts.
+const RING_BUFFER_PERIODS: usize = 4;
+
 pub struct RoutingDirector {
   audio_input: (Box<dyn AudioInput>, Consumer<f32>),
   audio_buses: Vec<(AudioBus, Producer<f32>)>,
   buffer_length: usize,
+  main_volume: Arc<AtomicU16>,
 }
 
 impl RoutingDirector {
@@ -24,82 +30,92 @@ impl RoutingDirector {
   /// `audio_input_name` takes an `&str` with the id of the audio output.
   /// An example of this could be `"system:capture_1"`.
   ///
-  /// `buffer_length` takes a `usize` with the buffer length used by the ring buffer(s).
+  /// `buffer_length` takes a `usize` with the buffer length (JACK period) used to size the ring buffer(s).
   ///
   /// Example:
-  /// ```
-  /// fn main() {
-  ///   let routing_director = RoutingDirector::new("system:capture_1", 1024).unwrap();
-  ///   routing_director.add_audio_bus("system:playback_1").unwrap();
-  ///   routing_director.enable_audio_bus("bus_1");
+  /// ```ignore
+  /// let mut routing_director = RoutingDirector::new("system:capture_1", 1024).unwrap();
+  /// routing_director.add_audio_bus("system:playback_1").unwrap();
+  /// routing_director.enable_audio_bus("bus_0").unwrap();
   ///
-  ///   loop {
-  ///     routing_director.update();
-  ///   }
+  /// loop {
+  ///   routing_director.update();
   /// }
   /// ```
   ///
   pub fn new(audio_input_name: &str, buffer_length: usize) -> Result<RoutingDirector, Error> {
-    let (input_producer, input_consumer) = RingBuffer::<f32>::new(buffer_length);
+    let (input_producer, input_consumer) = RingBuffer::<f32>::new(buffer_length * RING_BUFFER_PERIODS);
 
-    let audio_input = match AuxiliaryInput::open_stream(
-      audio_input_name,
-      input_producer,
-    ) {
-      Ok(audio_input) => audio_input,
-      Err(e) => return Err(e),
-    };
+    let audio_input = AuxiliaryInput::open_stream(audio_input_name, input_producer)?;
 
-    let audio_buses = Vec::new();
-
-    logger::info(LOG_ENVIRONMENT, "created");
+    logger::info(LOG_ENVIRONMENT, &format!("created, sample rate {} Hz", audio_input.sample_rate()));
 
     Ok(RoutingDirector {
       audio_input: (Box::new(audio_input), input_consumer),
-      audio_buses,
-      buffer_length
+      audio_buses: Vec::new(),
+      buffer_length,
+      main_volume: Arc::new(AtomicU16::new(u16::MAX)),
     })
   }
 
   ///
   /// `update()` must be called repeatedly by the owner.
-  /// This method consumes the data from the `AudioInput` and sends it to the enabled instances of `AudioBus`.
+  /// This method consumes all available data from the `AudioInput` and sends it to the enabled instances of `AudioBus`.
   ///
-  pub fn update(&mut self) {
-    // Get audio slice from input
+  /// Returns the number of samples that were routed, `0` means there was nothing to do.
+  ///
+  pub fn update(&mut self) -> usize {
     let input_consumer = &mut self.audio_input.1;
-    let new_sample = match input_consumer.pop() {
-      Ok(new_sample) => new_sample,
-      Err(_) => return,
-    };
+    let available = input_consumer.slots();
+    if available == 0 {
+      return 0;
+    }
 
-    // Collect enabled audio buses and push the audio slice
+    let Ok(chunk) = input_consumer.read_chunk(available) else {
+      return 0;
+    };
+    let (first, second) = chunk.as_slices();
+
+    // Push the audio to the enabled audio buses, dropping what does not fit if a bus falls behind
     self.audio_buses
         .iter_mut()
-        .filter(|bus| bus.0.is_enabled() == true)
-        .for_each(|bus| _ = bus.1.push(new_sample));
+        .filter(|(bus, _)| bus.is_enabled())
+        .for_each(|(_, producer)| {
+          let writable = producer.slots().min(available);
+          if let Ok(output) = producer.write_chunk_uninit(writable) {
+            output.fill_from_iter(first.iter().chain(second).copied());
+          }
+        });
+
+    chunk.commit_all();
+    available
   }
 
   ///
   /// Creates a new instance of `AudioBus`.
-  /// The instance is disabled by default, but can be enabled using `enable_audio_bus()`.
+  /// The instance is enabled by default, but can be disabled using `disable_audio_bus()`.
   /// Upon creation, a ring buffer will be created that the bus uses to consume the captured data from.
   ///
   /// `audio_output_name` takes an `&str` with the id of the audio output.
   /// An example of this could be `"system:playback_1"`.
   ///
   pub fn add_audio_bus(&mut self, audio_output_name: &str) -> Result<(), Error> {
-    let (bus_producer, bus_consumer) = RingBuffer::<f32>::new(2048);
-    let new_bus = match AudioBus::new(bus_consumer, audio_output_name, true, self.buffer_length) {
-      Ok(new_bus) => new_bus,
-      Err(e) => return Err(e),
-    };
+    let ring_buffer_length = self.buffer_length * RING_BUFFER_PERIODS;
+    let (bus_producer, bus_consumer) = RingBuffer::<f32>::new(ring_buffer_length);
+    let new_bus = AudioBus::new(
+      bus_consumer,
+      audio_output_name,
+      true,
+      ring_buffer_length,
+      Arc::clone(&self.main_volume),
+      self.sample_rate(),
+    )?;
 
     self.audio_buses.push((
       new_bus,
       bus_producer,
     ));
-    
+
     Ok(())
   }
 
@@ -109,14 +125,12 @@ impl RoutingDirector {
   /// `bus_id` is the incremental id of the `AudioBus` to be enabled, for example "bus_1".
   ///
   pub fn enable_audio_bus(&mut self, bus_id: &str) -> Result<(), Error> {
-    if let Some(bus) = self.audio_buses
-        .iter_mut()
-        .find(|bus| bus.0.id() == bus_id) {
-          bus.0.enable();
-          Ok(())
-        } 
-    else {
-      Err(Error::new(format!("AudioBus {} not found", bus_id).as_str()))
+    match self.audio_bus(bus_id) {
+      Some(bus) => {
+        bus.enable();
+        Ok(())
+      }
+      None => Err(Error::new(&format!("AudioBus {} not found", bus_id))),
     }
   }
 
@@ -126,21 +140,37 @@ impl RoutingDirector {
   /// `bus_id` is the incremental id of the `AudioBus` to be disabled, for example "bus_1".
   ///
   pub fn disable_audio_bus(&mut self, bus_id: &str) -> Result<(), Error> {
-    if let Some(bus) = self.audio_buses
-        .iter_mut()
-        .find(|bus| bus.0.id() == bus_id) {
-      bus.0.disable();
-      Ok(())
-    }
-    else {
-      Err(Error::new(format!("AudioBus {} not found", bus_id).as_str()))
+    match self.audio_bus(bus_id) {
+      Some(bus) => {
+        bus.disable();
+        Ok(())
+      }
+      None => Err(Error::new(&format!("AudioBus {} not found", bus_id))),
     }
   }
 
   ///
-  /// Returns all existing instances of `AudioBus` as a `Vec<&AudioBus>`.
+  /// Returns the `AudioBus` with the given incremental id, for example "bus_1".
   ///
-  pub fn audio_buses(&mut self) -> Vec<&mut AudioBus> {
-    self.audio_buses.iter_mut().map(|(bus, _)| bus).collect()
+  pub fn audio_bus(&mut self, bus_id: &str) -> Option<&mut AudioBus> {
+    self.audio_buses
+      .iter_mut()
+      .map(|(bus, _)| bus)
+      .find(|bus| bus.id() == bus_id)
+  }
+
+  ///
+  /// Sets the volume applied to every `AudioBus` after its effect chain.
+  /// `0` is silent, `u16::MAX` is unity gain.
+  ///
+  pub fn set_main_volume(&self, volume: u16) {
+    self.main_volume.store(volume, Ordering::Relaxed);
+  }
+
+  ///
+  /// Returns the sample rate of the audio input in Hz.
+  ///
+  pub fn sample_rate(&self) -> usize {
+    self.audio_input.0.sample_rate()
   }
 }

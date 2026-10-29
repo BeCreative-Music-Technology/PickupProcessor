@@ -1,4 +1,5 @@
 {
+  "main_volume": 52428,
   "audio_buses": [
     {
       "id": "bus_0",
@@ -6,17 +7,34 @@
       "effects": [
         {
           "effect_type": "low_pass_filter",
+          "enabled": true,
           "mix": 65535,
           "parameters": [
             {
               "key": "frequency",
               "value": 3273,
-              "input_control_id": "rotary_0"
+              "input_control_id": "rotary_0",
+              "range_min": 300,
+              "range_max": 9800,
+              "curve": "exponential",
+              "release": "hold"
             },
             {
               "key": "q_factor",
-              "value": 65535,
-              "input_control_id": "rotary_0"
+              "value": 2750,
+              "input_control_id": ""
+            }
+          ]
+        },
+        {
+          "effect_type": "gain",
+          "enabled": true,
+          "mix": 65535,
+          "parameters": [
+            {
+              "key": "gain",
+              "value": 16384,
+              "input_control_id": ""
             }
           ]
         }
@@ -25,12 +43,65 @@
     {
       "id": "bus_1",
       "enabled": true,
-      "effects": []
+      "effects": [
+        {
+          "effect_type": "reverb",
+          "enabled": true,
+          "mix": 19661,
+          "parameters": [
+            {
+              "key": "room_size",
+              "value": 32767,
+              "input_control_id": ""
+            },
+            {
+              "key": "decay",
+              "value": 6524,
+              "input_control_id": ""
+            },
+            {
+              "key": "dampening",
+              "value": 32767,
+              "input_control_id": ""
+            },
+            {
+              "key": "mix",
+              "value": 19661,
+              "input_control_id": "rotary_0"
+            },
+            {
+              "key": "enabled",
+              "value": 65535,
+              "input_control_id": "laser_1",
+              "mode": "momentary"
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "bus_2",
-      "enabled": true,
-      "effects": []
+      "enabled": false,
+      "effects": [
+        {
+          "effect_type": "delay",
+          "enabled": true,
+          "mix": 32767,
+          "parameters": [
+            {
+              "key": "delay",
+              "value": 12844,
+              "input_control_id": ""
+            },
+            {
+              "key": "mix",
+              "value": 32767,
+              "input_control_id": "laser_2",
+              "release": "return"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

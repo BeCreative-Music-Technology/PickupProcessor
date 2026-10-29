@@ -1,11 +1,12 @@
-﻿use std::sync::Arc;
-use crate::control_input::{ControlInputObserver};
+use std::sync::Arc;
+use std::sync::atomic::AtomicU16;
 use crate::error::Error;
 
 
 pub trait AudioEffect: Send {
   fn process_chunk(&mut self, sample: f32) -> f32;
   fn set_value(&mut self, key: &str, value: u16) -> Result<(), Error>;
-  fn get_control_observer(&mut self, key: &str) -> Result<Arc<dyn ControlInputObserver>, Error>;
+  /// Shared storage of a parameter that can be changed live, e.g. by a control input.
+  fn parameter(&self, key: &str) -> Result<Arc<AtomicU16>, Error>;
   fn get_type(&self) -> &str;
 }
